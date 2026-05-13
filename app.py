@@ -399,11 +399,37 @@ def api_analyze_meal():
     elif fname.endswith(".gif"):  media_type = "image/gif"
     else:                         media_type = "image/jpeg"
 
-    # Sauvegarder l'image
+    # Sauvegarder l'image originale
     ext = media_type.split("/")[1]
     img_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.{ext}"
     img_path = MEALS_DIR / img_filename
     img_path.write_bytes(img_bytes)
+
+    # Compression si > 4 MB (limite Claude API = 5 MB)
+    MAX_BYTES = 4 * 1024 * 1024
+    if len(img_bytes) > MAX_BYTES:
+        try:
+            from PIL import Image
+            import io as _io
+            pil_img = Image.open(_io.BytesIO(img_bytes)).convert("RGB")
+            # Réduire dimensions si trop grandes
+            max_dim = 1600
+            w, h = pil_img.size
+            if w > max_dim or h > max_dim:
+                pil_img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+            # Réduire qualité jusqu'à passer sous MAX_BYTES
+            quality = 85
+            buf = _io.BytesIO()
+            while quality >= 30:
+                buf.seek(0); buf.truncate()
+                pil_img.save(buf, format="JPEG", quality=quality, optimize=True)
+                if buf.tell() <= MAX_BYTES:
+                    break
+                quality -= 10
+            img_bytes = buf.getvalue()
+            media_type = "image/jpeg"
+        except Exception:
+            pass  # fallback : envoyer l'original, Claude renverra l'erreur
 
     img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
