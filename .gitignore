@@ -1,0 +1,25 @@
+# Données locales
+*.db
+.env
+
+# Photos de repas
+static/meals/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

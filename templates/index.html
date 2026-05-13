@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mon Coach">
+<meta name="theme-color" content="#4A6CF7">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<title>Mon Coach – Tableau de bord Garmin</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- SIDEBAR BACKDROP (mobile) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="logo">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+    <div class="logo-text"><h3>Mon Coach</h3><p>Performance</p></div>
+  </div>
+  <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
+  </button>
+  <button class="nav-item" data-view="sleep" onclick="showView('sleep')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>Sommeil
+  </button>
+  <button class="nav-item" data-view="sport" onclick="showView('sport')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Sport
+  </button>
+  <button class="nav-item" data-view="stress" onclick="showView('stress')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress &amp; FC
+  </button>
+  <button class="nav-item" data-view="goals" onclick="showView('goals')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Objectifs
+  </button>
+  <button class="nav-item" data-view="nutrition" onclick="showView('nutrition')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5c0 3-2 5.5-5 8-3-2.5-5-5-5-8a5 5 0 0 1 5-5z"/><path d="M12 15v7M9 19h6"/></svg>Nutrition
+  </button>
+  <div class="sidebar-footer">
+    <div class="sidebar-footer-row">
+      <div class="avatar" id="avatarInitial">S</div>
+      <div class="avatar-info"><p id="userName">Stéphane</p><span>Garmin Connect</span></div>
+    </div>
+    <button class="dark-toggle" onclick="toggleDark()" id="darkToggleBtn">
+      <svg id="darkIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <span id="darkLabel">Mode sombre</span>
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left" style="display:flex;align-items:center">
+      <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div>
+        <h1 id="viewTitle">Mon tableau de bord</h1>
+        <p id="topbarSub">Sommeil · Sport · Stress · Activités — données Garmin</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="period-selector">
+        <button class="period-btn" onclick="setPeriod(7)">7j</button>
+        <button class="period-btn active" onclick="setPeriod(30)">30j</button>
+        <button class="period-btn" onclick="setPeriod(90)">90j</button>
+      </div>
+      <button class="import-btn" id="installBtn" onclick="installPWA()" style="display:none;background:var(--green)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M12 2v13M5 9l7 7 7-7"/><path d="M3 20h18"/></svg>
+        <span class="import-label">Installer l'app</span>
+      </button>
+      <button class="import-btn" onclick="openModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="import-label">Importer ZIP / RAR</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══════════════ DASHBOARD ══════════════ -->
+    <div class="view active" id="view-dashboard">
+
+      <!-- Score -->
+      <div class="score-card" id="scoreCard" style="display:none">
+        <div class="score-ring-wrap">
+          <canvas id="scoreRing"></canvas>
+          <div class="score-ring-label"><span id="scoreVal">—</span><small>/ 100</small></div>
+        </div>
+        <div class="score-info">
+          <h3 id="scoreLabel">Score de forme</h3>
+          <p id="scoreDesc">—</p>
+          <div class="score-breakdown">
+            <div class="score-item"><div class="score-item-val" id="sc_sleep">—</div><div class="score-item-lbl">Sommeil</div></div>
+            <div class="score-item"><div class="score-item-val" id="sc_stress">—</div><div class="score-item-lbl">Stress</div></div>
+            <div class="score-item"><div class="score-item-val" id="sc_hr">—</div><div class="score-item-lbl">FC repos</div></div>
+            <div class="score-item"><div class="score-item-val" id="sc_steps">—</div><div class="score-item-lbl">Activité</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-header"><span class="kpi-title">Sommeil</span>
+            <div class="kpi-icon" style="background:var(--purple-l)"><svg viewBox="0 0 24 24" fill="var(--purple)"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></div></div>
+          <div class="kpi-value" id="kSleep">—</div>
+          <div class="kpi-sub">Dernière nuit</div>
+          <div class="kpi-trend" id="tSleep"></div>
+          <div class="kpi-spark"><canvas id="spSleep"></canvas></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header"><span class="kpi-title">Calories</span>
+            <div class="kpi-icon" style="background:var(--orange-l)"><svg viewBox="0 0 24 24" fill="var(--orange)"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></div></div>
+          <div class="kpi-value" id="kCal">—</div>
+          <div class="kpi-sub">kcal brûlées</div>
+          <div class="kpi-trend" id="tCal"></div>
+          <div class="kpi-spark"><canvas id="spCal"></canvas></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header"><span class="kpi-title">Pas</span>
+            <div class="kpi-icon" style="background:var(--green-l)"><svg viewBox="0 0 24 24" fill="var(--green)"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg></div></div>
+          <div class="kpi-value" id="kSteps">—</div>
+          <div class="kpi-sub">Aujourd'hui</div>
+          <div class="kpi-trend" id="tSteps"></div>
+          <div class="kpi-spark"><canvas id="spSteps"></canvas></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header"><span class="kpi-title">FC min / max</span>
+            <div class="kpi-icon" style="background:var(--teal-l)"><svg viewBox="0 0 24 24" fill="var(--teal)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div></div>
+          <div class="kpi-value" id="kHR">—</div>
+          <div class="kpi-sub" id="kHRsub">bpm</div>
+          <div class="kpi-trend" id="tHR"></div>
+          <div class="kpi-spark"><canvas id="spHR"></canvas></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header"><span class="kpi-title">Stress</span>
+            <div class="kpi-icon" style="background:#FEF3C7"><svg viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/></svg></div></div>
+          <div class="kpi-value" id="kStress">—</div>
+          <div class="kpi-sub" id="kStressLabel">Niveau moyen</div>
+          <div class="kpi-trend" id="tStress"></div>
+          <div class="kpi-spark"><canvas id="spStress"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Records -->
+      <div class="records-grid" id="recordsGrid" style="display:none"></div>
+
+      <!-- Heatmap -->
+      <div class="panel-full" id="heatmapPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="var(--green)" width="20" height="20"><rect x="3" y="3" width="3" height="3" rx=".5"/><rect x="8" y="3" width="3" height="3" rx=".5" opacity=".6"/><rect x="13" y="3" width="3" height="3" rx=".5" opacity=".3"/><rect x="3" y="8" width="3" height="3" rx=".5" opacity=".8"/><rect x="8" y="8" width="3" height="3" rx=".5"/><rect x="13" y="8" width="3" height="3" rx=".5" opacity=".5"/></svg>
+            Activité quotidienne — 365 jours
+          </div>
+          <span class="badge" style="background:var(--green-l);color:var(--green)">Pas</span>
+        </div>
+        <div class="heatmap-wrap"><div id="heatmapContainer"></div></div>
+        <div class="heatmap-legend">
+          <span>Moins</span>
+          <div class="hm-leg-cell" style="background:#E5E7EB"></div>
+          <div class="hm-leg-cell" style="background:#DCFCE7"></div>
+          <div class="hm-leg-cell" style="background:#86EFAC"></div>
+          <div class="hm-leg-cell" style="background:#4ADE80"></div>
+          <div class="hm-leg-cell" style="background:#16A34A"></div>
+          <span>Plus (10 000+ pas)</span>
+        </div>
+      </div>
+
+      <!-- Comparison -->
+      <div class="panel-full" id="compPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="2"/><rect x="13" y="3" width="9" height="18" rx="2" opacity=".5"/></svg>
+            Comparaison — période actuelle vs précédente
+          </div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="compBadge">—</span>
+        </div>
+        <div class="comparison-grid" id="compGrid"></div>
+        <div style="height:180px;position:relative"><canvas id="compChart"></canvas></div>
+      </div>
+
+      <!-- Sleep + Activities -->
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--purple)"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>Sommeil</div>
+            <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepBadge">—</span>
+          </div>
+          <div class="sleep-stats">
+            <div><div class="sleep-label">Au lit</div><div class="sleep-val" id="slInBed">—</div></div>
+            <div><div class="sleep-label">Sommeil total</div><div class="sleep-val" id="slTotal">—</div></div>
+          </div>
+          <div style="height:140px;position:relative"><canvas id="sleepDonut"></canvas></div>
+          <div id="sleepPhases"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Activités récentes</div>
+            <span class="badge" style="background:var(--green-l);color:var(--green)" id="actBadge">—</span>
+          </div>
+          <div class="act-list" id="actList"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div></div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--blue)" width="20" height="20"><rect x="2" y="14" width="4" height="8" rx="1"/><rect x="9" y="9" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="18" rx="1"/></svg>Pas quotidiens</div>
+            <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="stepsChartBadge">30j</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="stepsChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress &amp; FC min</div>
+            <span class="badge" style="background:#FEF3C7;color:var(--yellow)" id="stressChartBadge">30j</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="stressChart"></canvas></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Volume Course (km / sem.)</div>
+            <span class="badge" style="background:var(--orange-l);color:var(--orange)">10 sem.</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="runChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/></svg>Durée sommeil (nuits)</div>
+            <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepTrendBadge">15 nuits</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="sleepTrend"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SOMMEIL ══════════════ -->
+    <div class="view" id="view-sleep">
+      <div class="stat-boxes">
+        <div class="stat-box"><div class="stat-box-val" id="sl_avgTotal">—</div><div class="stat-box-lbl">Moy. total</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sl_avgDeep">—</div><div class="stat-box-lbl">Moy. profond</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sl_avgRem">—</div><div class="stat-box-lbl">Moy. REM</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sl_avgBed">—</div><div class="stat-box-lbl">Coucher moyen</div></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/></svg>Tendance sommeil</div>
+          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepTrendBadge2">—</span>
+        </div>
+        <div style="height:220px;position:relative"><canvas id="sleepTrendFull"></canvas></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--purple)"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>Dernière nuit</div>
+            <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepLastBadge">—</span>
+          </div>
+          <div class="sleep-stats">
+            <div><div class="sleep-label">Au lit</div><div class="sleep-val" id="sl2_inBed">—</div></div>
+            <div><div class="sleep-label">Total</div><div class="sleep-val" id="sl2_total">—</div></div>
+            <div><div class="sleep-label">Coucher</div><div class="sleep-val" id="sl2_bed">—</div></div>
+            <div><div class="sleep-label">Réveil</div><div class="sleep-val" id="sl2_wake">—</div></div>
+          </div>
+          <div style="height:140px;position:relative"><canvas id="sleepDonut2"></canvas></div>
+          <div id="sleepPhases2"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="2" y="14" width="4" height="8" rx="1"/><rect x="9" y="9" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="18" rx="1"/></svg>Phases moyennes</div>
+          </div>
+          <div style="height:240px;position:relative"><canvas id="sleepPhaseAvg"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ SPORT ══════════════ -->
+    <div class="view" id="view-sport">
+      <div class="stat-boxes">
+        <div class="stat-box"><div class="stat-box-val" id="sp_total">—</div><div class="stat-box-lbl">Séances totales</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sp_km">—</div><div class="stat-box-lbl">km courus</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sp_time">—</div><div class="stat-box-lbl">Temps total</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sp_cal">—</div><div class="stat-box-lbl">kcal sport</div></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Volume course (km / semaine)</div>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="runChartFull"></canvas></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Toutes les activités</div>
+        </div>
+        <div class="filter-tabs" id="actFilterTabs">
+          <button class="filter-tab active" onclick="setActFilter('all')">Toutes</button>
+          <button class="filter-tab" onclick="setActFilter('running')">Course</button>
+          <button class="filter-tab" onclick="setActFilter('cycling')">Vélo</button>
+          <button class="filter-tab" onclick="setActFilter('yoga')">Yoga</button>
+          <button class="filter-tab" onclick="setActFilter('strength_training')">Muscu</button>
+          <button class="filter-tab" onclick="setActFilter('other')">Autre</button>
+        </div>
+        <div class="act-list" id="actListFull"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════ STRESS & FC ══════════════ -->
+    <div class="view" id="view-stress">
+      <div class="stat-boxes">
+        <div class="stat-box"><div class="stat-box-val" id="st_avgStress">—</div><div class="stat-box-lbl">Stress moyen</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="st_avgHR">—</div><div class="stat-box-lbl">FC repos moy.</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="st_minHR">—</div><div class="stat-box-lbl">Meilleure FC repos</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="st_bestStress">—</div><div class="stat-box-lbl">Meilleur stress</div></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress quotidien</div>
+          <span class="badge" style="background:#FEF3C7;color:var(--yellow)" id="stressBadge2">—</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="stressChartFull"></canvas></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--teal)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>FC de repos — tendance</div>
+          <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="hrBadge">—</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="hrRestChart"></canvas></div>
+      </div>
+      <div class="panel-full" id="bbPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Body Battery</div>
+          <span class="badge" style="background:var(--green-l);color:var(--green)" id="bbBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="bbChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ══════════════ OBJECTIFS ══════════════ -->
+    <div class="view" id="view-goals">
+      <div class="goal-list" id="goalList"></div>
+    </div>
+
+    <!-- ══════════════ NUTRITION ══════════════ -->
+    <div class="view" id="view-nutrition">
+
+      <!-- Totaux du jour -->
+      <div class="nutri-day-total">
+        <div class="nutri-day-card" id="dt-cal"></div>
+        <div class="nutri-day-card" id="dt-prot"></div>
+        <div class="nutri-day-card" id="dt-gluc"></div>
+        <div class="nutri-day-card" id="dt-lip"></div>
+      </div>
+
+      <!-- Zone upload photo -->
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="20" height="20">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Analyser un repas
+          </div>
+          <span class="badge" style="background:var(--green-l);color:var(--green)">Claude Vision IA</span>
+        </div>
+
+        <img id="nutriPreview" class="nutri-preview" alt="Aperçu du repas">
+
+        <div class="nutri-drop" id="nutriDropZone" onclick="document.getElementById('nutriFileInput').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <p><strong>Cliquez</strong> ou glissez une photo de votre repas</p>
+          <p class="cam-hint">📸 Sur mobile, ouvre directement l'appareil photo · JPG, PNG, WEBP</p>
+        </div>
+        <input type="file" id="nutriFileInput" accept="image/*" capture="environment" style="display:none">
+
+        <!-- Loading -->
+        <div class="nutri-loading" id="nutriLoading">
+          <div class="spinner"></div>
+          <p>Claude analyse votre repas…</p>
+        </div>
+        <!-- Erreur -->
+        <div id="nutriErr" style="display:none;margin-top:10px;font-size:13px;font-weight:600;color:var(--red)"></div>
+      </div>
+
+      <!-- Résultat d'analyse -->
+      <div id="nutriResultWrap" style="display:none"></div>
+
+      <!-- Historique du jour -->
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+              <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+            </svg>
+            Repas d'aujourd'hui
+          </div>
+        </div>
+        <div id="mealHistory">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+            <h3>Aucun repas analysé</h3>
+            <p>Prenez une photo pour commencer</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bnav-item active" data-view="dashboard" onclick="showView('dashboard')">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <span>Accueil</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="sleep" onclick="showView('sleep')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
+    <span>Sommeil</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="sport" onclick="showView('sport')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+    <span>Sport</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="stress" onclick="showView('stress')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Stress</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="nutrition" onclick="showView('nutrition')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+    </svg>
+    <span>Nutrition</span><div class="bnav-dot"></div>
+  </button>
+</nav>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h2>📁 Importer vos données Garmin</h2>
+    <p class="sub">Export Garmin Connect (.zip ou .rar) — traitement local, données sauvegardées sur votre machine.</p>
+    <div class="drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p>Glisser-déposer ici<br>ou <strong>cliquer pour parcourir</strong></p>
+      <p style="margin-top:8px;font-size:11px;color:#9CA3AF">.zip · .rar · jusqu'à 500 Mo</p>
+    </div>
+    <input type="file" id="fileInput" accept=".zip,.rar" style="display:none" onchange="uploadFile(this.files[0])">
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText">Envoi en cours…</div>
+    </div>
+    <div class="status-ok" id="statusOk"></div>
+    <div class="status-err" id="statusErr"></div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="clearBtn" onclick="clearData()" style="display:none">Effacer les données</button>
+      <button class="btn-sec" onclick="closeModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
