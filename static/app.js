@@ -794,6 +794,42 @@ async function deleteMeal(id){
   if(!nutriMeals.length)renderMealHistory([]);
 }
 
+// ── Compression image avant envoi (max 4 MB, max 1600px)
+function compressImage(file, maxBytes=4*1024*1024, maxDim=1600){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let {width:w,height:h}=img;
+      // Réduire dimensions si trop grandes
+      if(w>maxDim||h>maxDim){
+        if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}
+        else{w=Math.round(w*maxDim/h);h=maxDim;}
+      }
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      // Réduire qualité jusqu'à passer sous maxBytes
+      let quality=0.85;
+      const tryExport=()=>{
+        canvas.toBlob(blob=>{
+          if(!blob){resolve(file);return;}
+          if(blob.size<=maxBytes||quality<=0.3){
+            resolve(new File([blob],file.name,{type:'image/jpeg'}));
+          } else {
+            quality-=0.1;
+            tryExport();
+          }
+        },'image/jpeg',quality);
+      };
+      tryExport();
+    };
+    img.onerror=()=>resolve(file); // fallback sans compression
+    img.src=url;
+  });
+}
+
 // ── Upload & analyse photo
 async function analyzePhoto(file){
   if(!file)return;
@@ -811,6 +847,11 @@ async function analyzePhoto(file){
   if(result)result.style.display='none';
   if(errEl){errEl.style.display='none';errEl.textContent='';}
   loading.style.display='block';
+
+  // Compression si > 4 MB
+  if(file.size > 4*1024*1024){
+    file = await compressImage(file);
+  }
 
   const fd=new FormData();
   fd.append('file',file);
