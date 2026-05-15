@@ -1030,6 +1030,89 @@ function toggleTodayExpand(){
 }
 
 let _selectedPlanIdx = -1;
+let _draggedSessionIdx = -1;   // index dans trainingPlan de la session en cours de drag
+
+// ── Génère les 7 prochains jours à partir d'aujourd'hui
+function get7Days(){
+  const DAY_FR=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const days=[];
+  const today=new Date();
+  for(let i=0;i<7;i++){
+    const d=new Date(today);
+    d.setDate(today.getDate()+i);
+    days.push({
+      dayName: DAY_FR[d.getDay()],
+      dayNum:  d.getDate(),
+      month:   d.getMonth()+1,
+      isToday: i===0,
+      date:    d,
+    });
+  }
+  return days;
+}
+
+// ── Trouve la session du plan assignée à un jour donné
+function getSessionIdxForDay(dayNum, month){
+  return trainingPlan.findIndex(s=>s.day_num===dayNum && s.month===month);
+}
+
+// ── Drag & Drop handlers
+function onSessionDragStart(e, idx){
+  _draggedSessionIdx=idx;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain', String(idx));
+  setTimeout(()=>{ const el=document.querySelector('.plan-session-btn[data-idx="'+idx+'"]'); if(el)el.classList.add('dragging'); },0);
+}
+function onSessionDragEnd(e){
+  document.querySelectorAll('.plan-session-btn.dragging').forEach(el=>el.classList.remove('dragging'));
+  document.querySelectorAll('.plan-day-slot.drag-over').forEach(el=>el.classList.remove('drag-over'));
+}
+function onDayDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const slot=e.currentTarget;
+  if(!slot.classList.contains('drag-over')) slot.classList.add('drag-over');
+}
+function onDayDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDayDrop(e, dayNum, month, dayName){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if(_draggedSessionIdx<0) return;
+
+  const draggedSession = trainingPlan[_draggedSessionIdx];
+  if(!draggedSession) return;
+
+  // Y a-t-il déjà une session sur le jour cible ?
+  const targetIdx = getSessionIdxForDay(dayNum, month);
+  if(targetIdx>=0 && targetIdx!==_draggedSessionIdx){
+    // Échange : la session cible prend le jour source
+    const targetSession = trainingPlan[targetIdx];
+    targetSession.day_num  = draggedSession.day_num;
+    targetSession.month    = draggedSession.month;
+    targetSession.day_name = draggedSession.day_name;
+  }
+
+  // Assigner le jour cible à la session déplacée
+  draggedSession.day_num  = dayNum;
+  draggedSession.month    = month;
+  draggedSession.day_name = dayName;
+
+  _draggedSessionIdx = -1;
+
+  renderWeekPlan();
+  // Sélectionner la session déplacée dans le détail
+  const newIdx = trainingPlan.indexOf(draggedSession);
+  if(newIdx>=0) selectPlanDay(newIdx);
+
+  // Persister sur le serveur
+  fetch('/api/update-training-order',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({sessions: trainingPlan})
+  }).catch(()=>{});
+}
 
 function renderWeekPlan(){
   const listPanel   = document.getElementById('planListPanel');
@@ -1038,65 +1121,82 @@ function renderWeekPlan(){
 
   if(!trainingPlan.length){
     listPanel.innerHTML=`<div class="no-plan"><p style="font-size:13px">Chargez un plan pour commencer</p></div>`;
-    detailPanel.innerHTML=`<div class="no-plan">
+    if(detailPanel) detailPanel.innerHTML=`<div class="no-plan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <p style="font-size:14px;font-weight:600;margin-bottom:6px">Sélectionnez une séance</p>
     </div>`;
     return;
   }
 
-  const today = new Date();
-  // Trouver l'index du jour courant (ou premier jour par défaut)
-  let defaultIdx = trainingPlan.findIndex(s=>s.day_num===today.getDate()&&s.month===today.getMonth()+1);
-  if(defaultIdx<0) defaultIdx=0;
+  const days7 = get7Days();
 
-  // Rendre la liste
-  listPanel.innerHTML = trainingPlan.map((s,i)=>{
-    const isToday = s.day_num===today.getDate() && s.month===today.getMonth()+1;
-    return`<div class="plan-day-row ${isToday?'today-row':''}" id="planRow${i}" style="border-left-color:${s.color}" onclick="selectPlanDay(${i})">
-      <div class="pdr-day" style="color:${s.color}">${s.day_name} ${s.day_num}${isToday?' · Aujourd\'hui':''}</div>
-      <div class="pdr-title">${s.title}</div>
+  listPanel.innerHTML = days7.map((day)=>{
+    const sessionIdx = getSessionIdxForDay(day.dayNum, day.month);
+    const session    = sessionIdx>=0 ? trainingPlan[sessionIdx] : null;
+    return`<div class="plan-day-slot${day.isToday?' today-slot':''}"
+        ondragover="onDayDragOver(event)"
+        ondragleave="onDayDragLeave(event)"
+        ondrop="onDayDrop(event,${day.dayNum},${day.month},'${day.dayName}')">
+      <div class="plan-slot-date">
+        <span class="plan-slot-dayname">${day.dayName} ${day.dayNum}</span>
+        ${day.isToday?'<span class="plan-slot-today-pill">Aujourd\'hui</span>':''}
+      </div>
+      ${session
+        ?`<div class="plan-session-btn${day.isToday?' is-today':''}${sessionIdx===_selectedPlanIdx?' selected':''}"
+            data-idx="${sessionIdx}"
+            style="border-left-color:${session.color};background:${session.color}18"
+            draggable="true"
+            ondragstart="onSessionDragStart(event,${sessionIdx})"
+            ondragend="onSessionDragEnd(event)"
+            onclick="selectPlanDay(${sessionIdx})">${session.title}</div>`
+        :`<div class="plan-empty-slot"
+            ondragover="onDayDragOver(event)"
+            ondragleave="onDayDragLeave(event)"
+            ondrop="onDayDrop(event,${day.dayNum},${day.month},'${day.dayName}')">Repos · glisser ici</div>`
+      }
     </div>`;
   }).join('');
 
-  // Sélectionner le jour par défaut
-  selectPlanDay(defaultIdx);
+  // Sélectionner aujourd'hui si une session existe, sinon la première
+  const today=new Date();
+  let defaultIdx=trainingPlan.findIndex(s=>s.day_num===today.getDate()&&s.month===today.getMonth()+1);
+  if(defaultIdx<0) defaultIdx=0;
+  if(_selectedPlanIdx>=0 && trainingPlan[_selectedPlanIdx]) {
+    selectPlanDay(_selectedPlanIdx);
+  } else {
+    selectPlanDay(defaultIdx);
+  }
 }
 
 function selectPlanDay(idx){
-  const session = trainingPlan[idx];
+  const session=trainingPlan[idx];
   if(!session) return;
-  _selectedPlanIdx = idx;
+  _selectedPlanIdx=idx;
 
-  // Mettre à jour la sélection visuelle
-  document.querySelectorAll('.plan-day-row').forEach((el,i)=>{
-    el.classList.toggle('selected', i===idx);
+  // Mise à jour visuelle boutons
+  document.querySelectorAll('.plan-session-btn').forEach(el=>{
+    el.classList.toggle('selected', parseInt(el.dataset.idx)===idx);
   });
 
-  // Afficher le détail dans le panneau gauche
-  const detailPanel = document.getElementById('planDetailPanel');
+  // Afficher le détail
+  const detailPanel=document.getElementById('planDetailPanel');
   if(!detailPanel) return;
   detailPanel.innerHTML=`
     <div class="pdp-title">${session.title}</div>
     <div class="pdp-sub">${session.day_name} ${session.day_num}</div>
     <div class="pdp-body">${formatSessionHtml(session.content)}</div>`;
 
-  // Sur mobile : scroller vers le détail
   if(window.innerWidth<=768){
     detailPanel.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
 
-function openDayDetailById(idx){
-  selectPlanDay(idx);
-}
-
 function openDayDetail(session){
   if(!session) return;
-  _openedSession = session;
-  document.getElementById('ddsTitle').textContent = session.title;
-  document.getElementById('ddsSub').textContent   = `${session.day_name} ${session.day_num}`;
-  document.getElementById('ddsContent').innerHTML = formatSessionHtml(session.content);
+  _openedSession=session;
+  document.getElementById('ddsTitle').textContent=session.title;
+  document.getElementById('ddsSub').textContent=`${session.day_name} ${session.day_num}`;
+  document.getElementById('ddsContent').innerHTML=formatSessionHtml(session.content);
   document.getElementById('dayDetailModal').style.display='flex';
   document.body.style.overflow='hidden';
 }

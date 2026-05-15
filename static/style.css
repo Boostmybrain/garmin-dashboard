@@ -398,23 +398,53 @@ button,-webkit-tap-highlight-color:transparent;
 .plan-detail-panel .pdp-title{font-size:18px;font-weight:800;margin-bottom:4px}
 .plan-detail-panel .pdp-sub{font-size:13px;color:var(--text2);margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .plan-detail-panel .pdp-body{font-size:14px;line-height:1.8}
-.plan-list-panel{display:flex;flex-direction:column;gap:8px}
-.plan-day-row{
-  background:var(--surface);border-radius:12px;padding:12px 14px;
-  box-shadow:var(--sh);cursor:pointer;border-left:3px solid transparent;
+.plan-list-panel{display:flex;flex-direction:column;gap:6px}
+
+/* Slot jour (date + bouton séance) */
+.plan-day-slot{
+  background:var(--surface);border-radius:14px;padding:10px 12px;
+  box-shadow:var(--sh);border:1.5px solid var(--border);
+  transition:border-color .15s,box-shadow .15s;
+}
+.plan-day-slot.today-slot{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)30}
+.plan-day-slot.drag-over{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 2px var(--blue)}
+
+/* Ligne date */
+.plan-slot-date{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.plan-slot-dayname{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)}
+.plan-slot-today-pill{
+  font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:20px;
+  background:var(--blue);color:#fff;letter-spacing:.3px;
+}
+
+/* Bouton séance draggable */
+.plan-session-btn{
+  width:100%;padding:9px 12px;border-radius:10px;
+  font-size:12.5px;font-weight:700;line-height:1.3;
+  border-left:3px solid var(--blue);
+  cursor:grab;user-select:none;
+  transition:opacity .15s,box-shadow .15s,transform .1s;
+  text-align:left;
+}
+.plan-session-btn:hover{box-shadow:0 2px 10px var(--shadow);transform:translateY(-1px)}
+.plan-session-btn.selected{box-shadow:0 0 0 2px var(--blue);outline:none}
+.plan-session-btn.is-today{font-size:13px}
+.plan-session-btn.dragging{opacity:.35;cursor:grabbing}
+.plan-session-btn:active{cursor:grabbing}
+
+/* Slot vide (zone de dépôt) */
+.plan-empty-slot{
+  padding:8px 12px;border-radius:10px;border:2px dashed var(--border);
+  font-size:11px;color:var(--text2);text-align:center;
   transition:border-color .15s,background .15s;
 }
-.plan-day-row:hover{background:var(--surface2)}
-.plan-day-row.selected{border-left-color:var(--blue);background:var(--blue-l)}
-.plan-day-row .pdr-day{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:2px}
-.plan-day-row .pdr-title{font-size:13px;font-weight:600;line-height:1.3}
-.plan-day-row.today-row .pdr-day{color:var(--blue)}
+.plan-day-slot.drag-over .plan-empty-slot{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
 
 @media(max-width:768px){
   .plan-layout{grid-template-columns:1fr;grid-template-rows:auto auto}
   .plan-detail-panel{position:static;min-height:200px}
   .plan-list-panel{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:8px}
-  .plan-day-row{min-width:140px;flex-shrink:0}
+  .plan-day-slot{min-width:150px;flex-shrink:0}
   .plan-detail-panel{order:2}
   .plan-list-panel{order:1}
 }

@@ -395,6 +395,22 @@ def api_get_training():
     return jsonify({"ok": True, "sessions": sessions, "week_label": row[1], "uploaded_at": row[2]})
 
 
+@app.route("/api/update-training-order", methods=["POST"])
+def api_update_training_order():
+    """Sauvegarde le plan après un drag & drop côté client."""
+    data = request.get_json(force=True) or {}
+    sessions = data.get("sessions", [])
+    if not sessions:
+        return jsonify({"error": "Aucune séance fournie"}), 400
+    with sqlite3.connect(DATABASE) as c:
+        row = c.execute("SELECT id FROM training_week ORDER BY id DESC LIMIT 1").fetchone()
+        if not row:
+            return jsonify({"error": "Aucun plan trouvé"}), 404
+        c.execute("UPDATE training_week SET sessions=? WHERE id=?",
+                  [json.dumps(sessions, ensure_ascii=False), row[0]])
+    return jsonify({"ok": True})
+
+
 # ──────────────────────────────────────────────
 # GARMIN CONNECT API — SYNC
 # ──────────────────────────────────────────────
