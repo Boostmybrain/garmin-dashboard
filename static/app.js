@@ -979,15 +979,22 @@ function renderTodayWidget(){
         </div>
         <div class="tcard-badge" style="background:${s.color}20;color:${s.color}">Aujourd'hui</div>
       </div>
-      <div class="tcard-body" style="margin-top:8px">${previewHtml}</div>
-      <button class="tcard-expand" onclick="openTodayDetail()">
-        Voir la séance complète →
+      <div id="todayPreview" class="tcard-body" style="margin-top:8px">${previewHtml}</div>
+      <div id="todayFull" style="display:none;margin-top:8px">${formatSessionHtml(s.content)}</div>
+      <button class="tcard-expand" id="todayExpandBtn" onclick="toggleTodayExpand()">
+        Voir la séance complète ↓
       </button>
     </div>`;
 }
 
-function openTodayDetail(){
-  if(_todaySession) openDayDetail(_todaySession);
+function toggleTodayExpand(){
+  const preview = document.getElementById('todayPreview');
+  const full    = document.getElementById('todayFull');
+  const btn     = document.getElementById('todayExpandBtn');
+  const expanded = full.style.display !== 'none';
+  preview.style.display = expanded ? '' : 'none';
+  full.style.display    = expanded ? 'none' : '';
+  btn.textContent       = expanded ? 'Voir la séance complète ↓' : 'Réduire ↑';
 }
 
 let _selectedPlanIdx = -1;
