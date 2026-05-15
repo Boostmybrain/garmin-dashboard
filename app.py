@@ -681,11 +681,17 @@ def api_analyze_meal():
     img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
     prompt = (
-        "Tu es un nutritionniste expert. Analyse ce repas et estime ses valeurs nutritionnelles.\n"
-        "Réponds UNIQUEMENT avec un objet JSON valide (pas de texte avant ou après, pas de balises markdown) :\n"
-        '{"description":"Nom court du repas","calories":500,"proteines":30,"glucides":60,'
-        '"lipides":15,"fibres":8,"confiance":"haute|moyenne|basse",'
-        '"aliments":["Poulet grillé 150g — 165 kcal","Riz 100g — 130 kcal"]}'
+        "Tu es un nutritionniste expert et diététicien. Analyse cette photo de repas avec précision.\n\n"
+        "INSTRUCTIONS :\n"
+        "1. Identifie chaque aliment visible et estime sa quantité en grammes selon la taille de l'assiette/bol\n"
+        "2. Utilise les valeurs nutritionnelles de référence (Ciqual / USDA) pour chaque aliment\n"
+        "3. Calcule les totaux en additionnant chaque composant\n"
+        "4. Sois précis : un plat cuisiné maison vs industriel change beaucoup les valeurs\n"
+        "5. Tiens compte des modes de cuisson visibles (frit, grillé, sauté, vapeur…)\n\n"
+        "Réponds UNIQUEMENT avec un objet JSON valide (sans texte avant/après, sans balises markdown) :\n"
+        '{"description":"Nom précis du repas","calories":520,"proteines":32,"glucides":58,'
+        '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
+        '"aliments":["Poulet grillé 150g — 165 kcal, P:31g G:0g L:4g","Riz basmati cuit 180g — 234 kcal, P:4g G:52g L:0g","Haricots verts 80g — 22 kcal, P:2g G:4g L:0g"]}'
     )
 
     try:
