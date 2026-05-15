@@ -24,6 +24,12 @@ except ImportError:
     _ANTHROPIC_AVAILABLE = False
 
 try:
+    from openai import OpenAI as _OpenAI
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    _OPENAI_AVAILABLE = False
+
+try:
     from garminconnect import Garmin as _GarminConnect
     _GARMIN_AVAILABLE = True
 except ImportError:
@@ -621,12 +627,12 @@ def get_meals(date: str | None = None) -> list:
 # ──────────────────────────────────────────────
 @app.route("/api/analyze-meal", methods=["POST"])
 def api_analyze_meal():
-    if not _ANTHROPIC_AVAILABLE:
-        return jsonify({"error": "Package 'anthropic' manquant. Lancez : pip install anthropic"}), 500
+    if not _OPENAI_AVAILABLE:
+        return jsonify({"error": "Package 'openai' manquant."}), 500
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY","")
+    api_key = os.environ.get("OPENAI_API_KEY","")
     if not api_key:
-        return jsonify({"error": "Variable ANTHROPIC_API_KEY non définie. Ajoutez-la dans votre environnement."}), 500
+        return jsonify({"error": "Variable OPENAI_API_KEY non définie. Ajoutez-la dans Railway → Variables."}), 500
 
     if "file" not in request.files:
         return jsonify({"error": "Aucune image reçue"}), 400
@@ -646,7 +652,7 @@ def api_analyze_meal():
     img_path = MEALS_DIR / img_filename
     img_path.write_bytes(img_bytes)
 
-    # Compression si > 4 MB (limite Claude API = 5 MB)
+    # Compression si > 4 MB (limite OpenAI API)
     MAX_BYTES = 4 * 1024 * 1024
     if len(img_bytes) > MAX_BYTES:
         try:
@@ -683,22 +689,22 @@ def api_analyze_meal():
     )
 
     try:
-        client = _anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5",
+        client = _OpenAI(api_key=api_key)
+        msg = client.chat.completions.create(
+            model="gpt-4o-mini",
             max_tokens=800,
             messages=[{
                 "role": "user",
                 "content": [
-                    {"type": "image", "source": {
-                        "type": "base64", "media_type": media_type, "data": img_b64
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{media_type};base64,{img_b64}"
                     }},
                     {"type": "text", "text": prompt}
                 ]
             }]
         )
-        raw = msg.content[0].text.strip()
-        # Nettoyer si Claude ajoute des balises ```json
+        raw = msg.choices[0].message.content.strip()
+        # Nettoyer les balises ```json si présentes
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
         nutrition = json.loads(raw)
