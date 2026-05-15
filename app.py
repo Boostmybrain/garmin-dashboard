@@ -680,34 +680,52 @@ def api_analyze_meal():
 
     img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
+    system_prompt = (
+        "Tu es un nutritionniste expert et diététicien clinique avec 20 ans d'expérience. "
+        "Tu maîtrises parfaitement les tables nutritionnelles Ciqual (France) et USDA. "
+        "Tu estimes les portions avec précision en analysant la taille des récipients, des ustensiles visibles et les proportions relatives des aliments. "
+        "Tes analyses sont rigoureuses, détaillées et cohérentes avec les standards professionnels."
+    )
+
     prompt = (
-        "Tu es un nutritionniste expert et diététicien. Analyse cette photo de repas avec précision.\n\n"
-        "INSTRUCTIONS :\n"
-        "1. Identifie chaque aliment visible et estime sa quantité en grammes selon la taille de l'assiette/bol\n"
-        "2. Utilise les valeurs nutritionnelles de référence (Ciqual / USDA) pour chaque aliment\n"
-        "3. Calcule les totaux en additionnant chaque composant\n"
-        "4. Sois précis : un plat cuisiné maison vs industriel change beaucoup les valeurs\n"
-        "5. Tiens compte des modes de cuisson visibles (frit, grillé, sauté, vapeur…)\n\n"
+        "Analyse cette photo de repas étape par étape :\n\n"
+        "ÉTAPE 1 — IDENTIFICATION\n"
+        "Liste chaque aliment visible avec sa description précise (ex: riz blanc cuit, poulet grillé sans peau, salade verte, sauce vinaigrette).\n\n"
+        "ÉTAPE 2 — ESTIMATION DES PORTIONS\n"
+        "Pour chaque aliment, estime le poids en grammes en te basant sur :\n"
+        "- La taille standard des assiettes/bols (assiette normale ≈ 26cm, bol soupe ≈ 400ml)\n"
+        "- Les proportions visuelles entre les aliments\n"
+        "- Les portions habituelles (ex: steak = 150-200g, portion de riz cuit = 150-200g)\n"
+        "- La densité visuelle (aliment tassé vs léger)\n\n"
+        "ÉTAPE 3 — CALCUL NUTRITIONNEL\n"
+        "Pour chaque aliment, calcule les macros avec les valeurs Ciqual/USDA pour 100g puis multiplie par la portion.\n"
+        "Tiens compte du mode de cuisson visible (frit +matière grasse, poêlé +huile, vapeur/eau = valeurs de base).\n\n"
+        "ÉTAPE 4 — JSON FINAL\n"
         "Réponds UNIQUEMENT avec un objet JSON valide (sans texte avant/après, sans balises markdown) :\n"
         '{"description":"Nom précis du repas","calories":520,"proteines":32,"glucides":58,'
         '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
-        '"aliments":["Poulet grillé 150g — 165 kcal, P:31g G:0g L:4g","Riz basmati cuit 180g — 234 kcal, P:4g G:52g L:0g","Haricots verts 80g — 22 kcal, P:2g G:4g L:0g"]}'
+        '"aliments":["Poulet grillé sans peau 160g — 176 kcal, P:33g G:0g L:4g","Riz blanc cuit 200g — 260 kcal, P:5g G:57g L:0g","Haricots verts vapeur 100g — 27 kcal, P:2g G:5g L:0g"]}'
     )
 
     try:
         client = _OpenAI(api_key=api_key)
         msg = client.chat.completions.create(
             model="gpt-4o",
-            max_tokens=800,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {
-                        "url": f"data:{media_type};base64,{img_b64}"
-                    }},
-                    {"type": "text", "text": prompt}
-                ]
-            }]
+            max_tokens=1500,
+            temperature=0,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {
+                            "url": f"data:{media_type};base64,{img_b64}",
+                            "detail": "high"
+                        }},
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ]
         )
         raw = msg.choices[0].message.content.strip()
         # Nettoyer les balises ```json si présentes
