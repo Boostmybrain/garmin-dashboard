@@ -97,6 +97,9 @@
     <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
 
+      <!-- Séance du jour -->
+      <div id="todayTrainingWidget"></div>
+
       <!-- Score -->
       <div class="score-card" id="scoreCard" style="display:none">
         <div class="score-ring-wrap">
@@ -427,8 +430,63 @@
         </div>
       </div>
 
+    <!-- ══════════════ PLANNING ══════════════ -->
+    <div class="view" id="view-planning">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2 style="font-size:20px;font-weight:700">Planning</h2>
+          <p id="planWeekLabel" style="font-size:13px;color:var(--text2);margin-top:2px">Aucun plan chargé</p>
+        </div>
+        <button class="import-btn" onclick="openPlanModal()" style="background:var(--blue)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Charger un plan</span>
+        </button>
+      </div>
+      <div id="weekPlanGrid" class="week-grid">
+        <div class="no-plan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <p style="font-size:14px;font-weight:600;margin-bottom:6px">Aucun plan de la semaine</p>
+          <p style="font-size:13px">Cliquez sur "Charger un plan" pour ajouter vos séances</p>
+        </div>
+      </div>
     </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PLANNING -->
+<div class="overlay" id="planOverlay" onclick="if(event.target===this)closePlanModal()" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h2 class="modal-title">📅 Charger le plan de la semaine</h2>
+      <button class="modal-close" onclick="closePlanModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">
+        Copiez-collez votre programme de la semaine ci-dessous.<br>
+        Format attendu : <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">LUNDI 19 MAI — FORCE BAS DU CORPS</code>
+      </p>
+      <textarea id="planTextarea" class="plan-textarea" placeholder="VENDREDI 15 MAI — HAUT DU CORPS HYROX
+🏋️ Séance principale — 4 tours
+6–10 tractions strictes
+..."></textarea>
+      <div id="planUploadErr" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closePlanModal()">Annuler</button>
+      <button class="btn-primary" onclick="uploadTrainingPlan()">Charger le plan</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETAIL SÉANCE -->
+<div class="day-detail-modal" id="dayDetailModal" style="display:none" onclick="if(event.target===this)closeDayDetail()">
+  <div class="day-detail-sheet">
+    <button class="dds-close" onclick="closeDayDetail()">✕</button>
+    <h2 id="ddsTitle"></h2>
+    <p class="dds-sub" id="ddsSub"></p>
+    <pre class="dds-content" id="ddsContent"></pre>
   </div>
 </div>
 
@@ -455,6 +513,12 @@
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
     </svg>
     <span>Nutrition</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="planning" onclick="showView('planning')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <span>Planning</span><div class="bnav-dot"></div>
   </button>
 </nav>
 

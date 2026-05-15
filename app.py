@@ -55,6 +55,12 @@ def init_db():
             imported_at TEXT,
             data TEXT
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS training_week(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            uploaded_at TEXT,
+            week_label  TEXT,
+            sessions    TEXT
+        )""")
         c.execute("""CREATE TABLE IF NOT EXISTS meals(
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             analyzed_at TEXT,
@@ -296,6 +302,92 @@ def build_garmin_data(files: dict) -> dict:
         "sleep":      parse_sleep(files),
         "customer":   parse_customer(files),
     }
+
+# ──────────────────────────────────────────────
+# TRAINING PLAN — PARSER & ROUTES
+# ──────────────────────────────────────────────
+_JOURS  = ['LUNDI','MARDI','MERCREDI','JEUDI','VENDREDI','SAMEDI','DIMANCHE']
+_MOIS   = {
+    'JANVIER':1,'FÉVRIER':2,'FEVRIER':2,'MARS':3,'AVRIL':4,'MAI':5,'JUIN':6,
+    'JUILLET':7,'AOÛT':8,'AOUT':8,'SEPTEMBRE':9,'OCTOBRE':10,'NOVEMBRE':11,
+    'DÉCEMBRE':12,'DECEMBRE':12,
+}
+_DAY_RE = re.compile(
+    r'(' + '|'.join(_JOURS) + r')\s+(\d{1,2})\s+(' + '|'.join(_MOIS.keys()) + r')\s*[—–\-]\s*(.+)',
+    re.IGNORECASE,
+)
+_EMOJI_COLORS = {
+    '🟣':'#8B5CF6','🟢':'#22C55E','🔴':'#EF4444','🟡':'#F59E0B',
+    '⚪':'#9CA3AF','🟠':'#F97316','🔥':'#F97316',
+}
+
+def parse_training_plan(text: str) -> list:
+    lines = text.split('\n')
+    day_starts: list[dict] = []
+    for i, line in enumerate(lines):
+        m = _DAY_RE.search(line.strip())
+        if m:
+            color = '#4A6CF7'
+            for emoji, c in _EMOJI_COLORS.items():
+                if emoji in line:
+                    color = c
+                    break
+            day_starts.append({
+                'line_idx': i,
+                'day_name': m.group(1).upper(),
+                'day_num':  int(m.group(2)),
+                'month':    _MOIS.get(m.group(3).upper(), 0),
+                'title':    m.group(4).strip(),
+                'color':    color,
+            })
+    sessions = []
+    for idx, ds in enumerate(day_starts):
+        start = ds['line_idx'] + 1
+        end   = day_starts[idx + 1]['line_idx'] if idx + 1 < len(day_starts) else len(lines)
+        content = '\n'.join(lines[start:end]).strip()
+        # preview = first non-empty line of content
+        preview = next((l.strip() for l in lines[start:end] if l.strip()), '')
+        sessions.append({
+            'day_name': ds['day_name'],
+            'day_num':  ds['day_num'],
+            'month':    ds['month'],
+            'title':    ds['title'],
+            'color':    ds['color'],
+            'content':  content,
+            'preview':  preview[:80],
+        })
+    return sessions
+
+
+@app.route("/api/upload-training", methods=["POST"])
+def api_upload_training():
+    body = request.get_json(silent=True) or {}
+    text = body.get("text", "").strip()
+    if not text:
+        return jsonify({"error": "Aucun texte fourni"}), 400
+    sessions = parse_training_plan(text)
+    if not sessions:
+        return jsonify({"error": "Aucune séance détectée. Vérifiez le format (ex: LUNDI 19 MAI — FORCE)"}), 400
+    week_label = f"Semaine du {sessions[0]['day_num']} au {sessions[-1]['day_num']}"
+    with sqlite3.connect(DATABASE) as c:
+        c.execute("INSERT INTO training_week(uploaded_at,week_label,sessions) VALUES(?,?,?)",
+                  [datetime.now(timezone.utc).isoformat(),
+                   week_label,
+                   json.dumps(sessions, ensure_ascii=False)])
+    return jsonify({"ok": True, "sessions": sessions, "week_label": week_label})
+
+
+@app.route("/api/training")
+def api_get_training():
+    with sqlite3.connect(DATABASE) as c:
+        row = c.execute(
+            "SELECT sessions, week_label, uploaded_at FROM training_week ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    if not row:
+        return jsonify({"ok": False, "sessions": []})
+    sessions = json.loads(row[0])
+    return jsonify({"ok": True, "sessions": sessions, "week_label": row[1], "uploaded_at": row[2]})
+
 
 # ──────────────────────────────────────────────
 # GARMIN CONNECT API — SYNC

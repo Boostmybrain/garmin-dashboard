@@ -96,6 +96,7 @@ const VIEW_META={
   stress:{title:'Stress & Fréquence Cardiaque',sub:'Tendances stress et FC de repos'},
   goals:{title:'Objectifs',sub:'Suivez vos objectifs quotidiens'},
   nutrition:{title:'Nutrition',sub:'Analyse de vos repas par IA'},
+  planning:{title:'Planning',sub:'Programme de la semaine'},
 };
 function showView(v){
   curView=v;
@@ -109,7 +110,8 @@ function showView(v){
 }
 function renderCurrent(){
   ({dashboard:renderDashboard,sleep:renderSleep,sport:renderSport,
-    stress:renderStressView,goals:renderGoals,nutrition:renderNutritionView}[curView]||(() => {}))();
+    stress:renderStressView,goals:renderGoals,nutrition:renderNutritionView,
+    planning:renderWeekPlan}[curView]||(() => {}))();
 }
 
 // ══════════════════════════════════════════
@@ -888,7 +890,121 @@ function initNutriDrop(){
 document.addEventListener('DOMContentLoaded', ()=>{
   initNutriDrop();
   initGarminSync();
+  loadTrainingPlan();
 });
+
+// ══════════════════════════════════════
+// PLANNING — TRAINING WEEK
+// ══════════════════════════════════════
+let trainingPlan = [];
+
+async function loadTrainingPlan(){
+  try{
+    const r = await fetch('/api/training');
+    const j = await r.json();
+    if(j.ok && j.sessions?.length){
+      trainingPlan = j.sessions;
+      renderTodayWidget();
+      if(curView==='planning') renderWeekPlan();
+      const lbl = document.getElementById('planWeekLabel');
+      if(lbl) lbl.textContent = j.week_label || '';
+    }
+  }catch(e){}
+}
+
+function getTodaySession(){
+  const now = new Date();
+  return trainingPlan.find(s => s.day_num === now.getDate() && s.month === now.getMonth()+1) || null;
+}
+
+function renderTodayWidget(){
+  const wrap = document.getElementById('todayTrainingWidget');
+  if(!wrap) return;
+  const session = getTodaySession();
+  if(!session){ wrap.innerHTML=''; return; }
+  const lines = session.content.split('\n').filter(l=>l.trim()).slice(0,6);
+  const preview = lines.map(l=>`<span class="t-section">${l}</span>`).join('');
+  wrap.innerHTML=`
+    <div class="today-training-card" style="border-left-color:${session.color}">
+      <div class="tcard-header">
+        <div>
+          <div class="tcard-title">${session.title}</div>
+          <div class="tcard-sub">${session.day_name} ${session.day_num}</div>
+        </div>
+        <div class="tcard-badge" style="background:${session.color}20;color:${session.color}">Aujourd'hui</div>
+      </div>
+      <div class="tcard-body">${preview}</div>
+      <button class="tcard-expand" onclick='openDayDetail(${JSON.stringify(session)})'>
+        Voir la séance complète →
+      </button>
+    </div>`;
+}
+
+function renderWeekPlan(){
+  const grid = document.getElementById('weekPlanGrid');
+  const lbl  = document.getElementById('planWeekLabel');
+  if(!grid) return;
+  if(!trainingPlan.length){
+    grid.innerHTML=`<div class="no-plan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p style="font-size:14px;font-weight:600;margin-bottom:6px">Aucun plan de la semaine</p>
+      <p style="font-size:13px">Cliquez sur "Charger un plan" pour ajouter vos séances</p>
+    </div>`;
+    return;
+  }
+  const today = new Date();
+  grid.innerHTML = trainingPlan.map(s=>{
+    const isToday = s.day_num===today.getDate() && s.month===today.getMonth()+1;
+    return`<div class="day-card ${isToday?'today-highlight':''}" style="border-top-color:${s.color}" onclick='openDayDetail(${JSON.stringify(s)})'>
+      <div class="dc-header">
+        <div style="width:10px;height:10px;border-radius:50%;background:${s.color};flex-shrink:0"></div>
+        <div class="dc-day">${s.day_name} ${s.day_num}${isToday?" — Aujourd'hui":''}</div>
+      </div>
+      <div class="dc-title">${s.title}</div>
+      <div class="dc-preview">${s.preview}</div>
+    </div>`;
+  }).join('');
+}
+
+function openDayDetail(session){
+  document.getElementById('ddsTitle').textContent  = session.title;
+  document.getElementById('ddsSub').textContent    = `${session.day_name} ${session.day_num}`;
+  document.getElementById('ddsContent').textContent = session.content;
+  document.getElementById('dayDetailModal').style.display='flex';
+}
+function closeDayDetail(){
+  document.getElementById('dayDetailModal').style.display='none';
+}
+function openPlanModal(){
+  document.getElementById('planOverlay').style.display='flex';
+  setTimeout(()=>document.getElementById('planTextarea').focus(), 100);
+}
+function closePlanModal(){
+  document.getElementById('planOverlay').style.display='none';
+  document.getElementById('planUploadErr').style.display='none';
+}
+async function uploadTrainingPlan(){
+  const text  = document.getElementById('planTextarea').value.trim();
+  const errEl = document.getElementById('planUploadErr');
+  if(!text){ errEl.textContent='Collez votre programme ci-dessus.'; errEl.style.display='block'; return; }
+  try{
+    const res = await fetch('/api/upload-training',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const j = await res.json();
+    if(!res.ok||j.error){ errEl.textContent='❌ '+j.error; errEl.style.display='block'; return; }
+    trainingPlan = j.sessions;
+    closePlanModal();
+    renderWeekPlan();
+    renderTodayWidget();
+    const lbl = document.getElementById('planWeekLabel');
+    if(lbl) lbl.textContent = j.week_label||'';
+  }catch(e){
+    errEl.textContent='❌ Erreur serveur'; errEl.style.display='block';
+  }
+}
 
 // ══════════════════════════════════════════
 // GARMIN CONNECT — SYNC AUTO
