@@ -897,6 +897,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // PLANNING — TRAINING WEEK
 // ══════════════════════════════════════
 let trainingPlan = [];
+let _openedSession = null; // évite les problèmes de quotes en onclick
 
 async function loadTrainingPlan(){
   try{
@@ -914,7 +915,39 @@ async function loadTrainingPlan(){
 
 function getTodaySession(){
   const now = new Date();
-  return trainingPlan.find(s => s.day_num === now.getDate() && s.month === now.getMonth()+1) || null;
+  return trainingPlan.find(s => s.day_num===now.getDate() && s.month===now.getMonth()+1) || null;
+}
+
+// Convertit le texte brut en HTML stylisé (comme les photos)
+function formatSessionHtml(content){
+  const lines = content.split('\n');
+  let html = '';
+  let inBlock = false;
+  for(const raw of lines){
+    const line = raw.trim();
+    if(!line){
+      if(inBlock){ html+='</ul>'; inBlock=false; }
+      html+='<div style="height:8px"></div>';
+      continue;
+    }
+    // Section headers = lignes avec emoji en début
+    if(/^[🏋️🔥⚡🧘🏃🎯⚠️👉🥤🟣🟢🔴🟡⚪🟠]/.test(line)){
+      if(inBlock){ html+='</ul>'; inBlock=false; }
+      html+=`<div style="font-size:15px;font-weight:700;margin:14px 0 6px;display:flex;align-items:center;gap:6px">${line}</div>`;
+      continue;
+    }
+    // Séparateurs texte (Repos :, Retour au calme, etc.)
+    if(/^(Repos|Retour|Bloc|Objectif|Intensité|Priorité)/i.test(line)){
+      if(inBlock){ html+='</ul>'; inBlock=false; }
+      html+=`<div style="font-size:13px;font-weight:600;color:#9CA3AF;margin-top:10px">${line}</div>`;
+      continue;
+    }
+    // Items de liste
+    if(!inBlock){ html+='<ul style="margin:4px 0 4px 18px;list-style:disc">'; inBlock=true; }
+    html+=`<li style="font-size:14px;line-height:1.7">${line}</li>`;
+  }
+  if(inBlock) html+='</ul>';
+  return html;
 }
 
 function renderTodayWidget(){
@@ -922,10 +955,21 @@ function renderTodayWidget(){
   if(!wrap) return;
   const session = getTodaySession();
   if(!session){ wrap.innerHTML=''; return; }
-  const lines = session.content.split('\n').filter(l=>l.trim()).slice(0,6);
-  const preview = lines.map(l=>`<span class="t-section">${l}</span>`).join('');
+
+  // Aperçu : 5 premières lignes non vides
+  const previewLines = session.content.split('\n').filter(l=>l.trim()).slice(0,5);
+  const previewHtml = previewLines.map(l=>{
+    const t = l.trim();
+    if(/^[🏋️🔥⚡🧘🏃🎯⚠️👉🥤]/.test(t))
+      return `<div style="font-weight:700;margin-top:6px">${t}</div>`;
+    return `<div style="font-size:13px;color:var(--text2);padding-left:8px">${t}</div>`;
+  }).join('');
+
   wrap.innerHTML=`
-    <div class="today-training-card" style="border-left-color:${session.color}">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
+      🏋️ Entraînement du jour
+    </div>
+    <div class="today-training-card" style="border-left-color:${session.color};cursor:pointer" onclick="openDayDetailById(${trainingPlan.indexOf(session)})">
       <div class="tcard-header">
         <div>
           <div class="tcard-title">${session.title}</div>
@@ -933,8 +977,8 @@ function renderTodayWidget(){
         </div>
         <div class="tcard-badge" style="background:${session.color}20;color:${session.color}">Aujourd'hui</div>
       </div>
-      <div class="tcard-body">${preview}</div>
-      <button class="tcard-expand" onclick='openDayDetail(${JSON.stringify(session)})'>
+      <div class="tcard-body" style="margin-top:8px">${previewHtml}</div>
+      <button class="tcard-expand" onclick="event.stopPropagation();openDayDetailById(${trainingPlan.indexOf(session)})">
         Voir la séance complète →
       </button>
     </div>`;
@@ -942,7 +986,6 @@ function renderTodayWidget(){
 
 function renderWeekPlan(){
   const grid = document.getElementById('weekPlanGrid');
-  const lbl  = document.getElementById('planWeekLabel');
   if(!grid) return;
   if(!trainingPlan.length){
     grid.innerHTML=`<div class="no-plan">
@@ -953,9 +996,9 @@ function renderWeekPlan(){
     return;
   }
   const today = new Date();
-  grid.innerHTML = trainingPlan.map(s=>{
+  grid.innerHTML = trainingPlan.map((s,i)=>{
     const isToday = s.day_num===today.getDate() && s.month===today.getMonth()+1;
-    return`<div class="day-card ${isToday?'today-highlight':''}" style="border-top-color:${s.color}" onclick='openDayDetail(${JSON.stringify(s)})'>
+    return`<div class="day-card ${isToday?'today-highlight':''}" style="border-top-color:${s.color}" onclick="openDayDetailById(${i})">
       <div class="dc-header">
         <div style="width:10px;height:10px;border-radius:50%;background:${s.color};flex-shrink:0"></div>
         <div class="dc-day">${s.day_name} ${s.day_num}${isToday?" — Aujourd'hui":''}</div>
@@ -966,14 +1009,22 @@ function renderWeekPlan(){
   }).join('');
 }
 
+function openDayDetailById(idx){
+  openDayDetail(trainingPlan[idx]);
+}
+
 function openDayDetail(session){
-  document.getElementById('ddsTitle').textContent  = session.title;
-  document.getElementById('ddsSub').textContent    = `${session.day_name} ${session.day_num}`;
-  document.getElementById('ddsContent').textContent = session.content;
+  if(!session) return;
+  _openedSession = session;
+  document.getElementById('ddsTitle').textContent = session.title;
+  document.getElementById('ddsSub').textContent   = `${session.day_name} ${session.day_num}`;
+  document.getElementById('ddsContent').innerHTML = formatSessionHtml(session.content);
   document.getElementById('dayDetailModal').style.display='flex';
+  document.body.style.overflow='hidden';
 }
 function closeDayDetail(){
   document.getElementById('dayDetailModal').style.display='none';
+  document.body.style.overflow='';
 }
 function openPlanModal(){
   document.getElementById('planOverlay').style.display='flex';

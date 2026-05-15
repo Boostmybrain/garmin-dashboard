@@ -377,9 +377,9 @@ button,-webkit-tap-highlight-color:transparent;
   width:100%;max-width:640px;max-height:85vh;overflow-y:auto;
   padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));
 }
-.day-detail-sheet h2{font-size:17px;font-weight:700;margin-bottom:4px}
-.day-detail-sheet .dds-sub{font-size:13px;color:var(--text2);margin-bottom:16px}
-.day-detail-sheet .dds-content{font-size:14px;line-height:1.8;white-space:pre-wrap}
+.day-detail-sheet h2{font-size:18px;font-weight:800;margin-bottom:4px}
+.day-detail-sheet .dds-sub{font-size:13px;color:var(--text2);margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.day-detail-sheet .dds-content{font-size:14px;line-height:1.8}
 .day-detail-sheet .dds-close{
   float:right;background:var(--surface2);border:none;border-radius:50%;
   width:32px;height:32px;cursor:pointer;font-size:18px;color:var(--text2);
