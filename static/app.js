@@ -95,7 +95,7 @@ const VIEW_META={
   sport:{title:'Sport & Activités',sub:'Toutes vos séances'},
   stress:{title:'Stress & Fréquence Cardiaque',sub:'Tendances stress et FC de repos'},
   goals:{title:'Objectifs',sub:'Suivez vos objectifs quotidiens'},
-  nutrition:{title:'Nutrition',sub:'Analyse de vos repas par IA'},
+  nutrition:{title:'Nutrition',sub:'Analyse de vos repas par OpenAI Vision'},
   planning:{title:'Planning',sub:'Programme de la semaine'},
 };
 function showView(v){
