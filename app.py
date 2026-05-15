@@ -23,14 +23,21 @@ try:
 except ImportError:
     _ANTHROPIC_AVAILABLE = False
 
+try:
+    from garminconnect import Garmin as _GarminConnect
+    _GARMIN_AVAILABLE = True
+except ImportError:
+    _GARMIN_AVAILABLE = False
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 
 # DATA_DIR : répertoire persistant (volume Railway) ou local par défaut
-DATA_DIR  = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
-DATABASE  = DATA_DIR / "garmin_data.db"
-MEALS_DIR = DATA_DIR / "meals"
+DATA_DIR       = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
+DATABASE       = DATA_DIR / "garmin_data.db"
+MEALS_DIR      = DATA_DIR / "meals"
+GARMIN_TOKENS  = DATA_DIR / ".garmin_tokens"
 MEALS_DIR.mkdir(parents=True, exist_ok=True)
 
 # En production, servir les photos via Flask (Railway n'a pas de static externe)
@@ -291,6 +298,148 @@ def build_garmin_data(files: dict) -> dict:
     }
 
 # ──────────────────────────────────────────────
+# GARMIN CONNECT API — SYNC
+# ──────────────────────────────────────────────
+def _garmin_client():
+    """Retourne un client Garmin Connect authentifié."""
+    email    = os.environ.get("GARMIN_EMAIL", "")
+    password = os.environ.get("GARMIN_PASSWORD", "")
+    if not email or not password:
+        raise ValueError("Variables GARMIN_EMAIL et GARMIN_PASSWORD non configurées dans Railway.")
+    GARMIN_TOKENS.mkdir(parents=True, exist_ok=True)
+    client = _GarminConnect(email=email, password=password)
+    # Essayer les tokens sauvegardés (évite une re-auth)
+    try:
+        client.login(str(GARMIN_TOKENS))
+        return client
+    except Exception:
+        pass
+    # Login complet
+    client.login()
+    try:
+        client.garth.dump(str(GARMIN_TOKENS))
+    except Exception:
+        pass
+    return client
+
+
+def _fetch_garmin_api(client, days=30):
+    """Récupère wellness, sleep et activités depuis l'API Garmin Connect."""
+    from datetime import timedelta, date as _date
+    end_d   = _date.today()
+    start_d = end_d - timedelta(days=days - 1)
+
+    wellness_out, sleep_out = [], []
+
+    current = start_d
+    while current <= end_d:
+        ds = current.strftime("%Y-%m-%d")
+
+        # ── Wellness (pas, calories, FC, stress, body battery)
+        try:
+            s = client.get_stats(ds) or {}
+            steps = s.get("totalSteps") or 0
+            if steps:
+                bb = (s.get("bodyBatteryMostRecentValue")
+                      or s.get("bodyBatteryChargeMax")
+                      or s.get("maxBodyBattery"))
+                wellness_out.append({
+                    "date":                ds,
+                    "steps":               steps,
+                    "calories":            round(s.get("totalKilocalories") or 0),
+                    "minHR":               s.get("minHeartRate"),
+                    "maxHR":               s.get("maxHeartRate"),
+                    "stress":              s.get("averageStressLevel"),
+                    "distance_m":          s.get("totalDistanceMeters") or 0,
+                    "activeSeconds":       s.get("activeSeconds") or 0,
+                    "highlyActiveSeconds": s.get("highlyActiveSeconds") or 0,
+                    "bodyBattery":         int(bb) if bb else None,
+                })
+        except Exception:
+            pass
+
+        # ── Sommeil
+        try:
+            raw = client.get_sleep_data(ds) or {}
+            dto = raw.get("dailySleepDTO") or raw
+            deep  = dto.get("deepSleepSeconds")  or 0
+            light = dto.get("lightSleepSeconds") or 0
+            rem   = dto.get("remSleepSeconds")   or 0
+            awake = dto.get("awakeSleepSeconds") or 0
+            if deep + light >= 3600:
+                def _ms_to_hhmm(ts):
+                    if not ts: return ""
+                    try:
+                        if isinstance(ts, (int, float)) and ts > 1e10:
+                            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%H:%M")
+                        return str(ts)[11:16]
+                    except Exception:
+                        return ""
+
+                st = dto.get("sleepStartTimestampGMT") or dto.get("sleepStartTimestampLocal")
+                et = dto.get("sleepEndTimestampGMT")   or dto.get("sleepEndTimestampLocal")
+                inbed = 0
+                if st and et:
+                    try:
+                        s1 = (st / 1000 if isinstance(st, (int, float)) and st > 1e10 else None)
+                        e1 = (et / 1000 if isinstance(et, (int, float)) and et > 1e10 else None)
+                        if s1 and e1:
+                            inbed = int((e1 - s1) / 60)
+                    except Exception:
+                        pass
+                score = None
+                ss = dto.get("sleepScores")
+                if isinstance(ss, dict):
+                    score = (ss.get("overall") or {}).get("value")
+                sleep_out.append({
+                    "date":           dto.get("calendarDate", ds),
+                    "sleepTotal_min": round((deep + light + rem) / 60),
+                    "inBed_min":      inbed,
+                    "deep_min":       round(deep  / 60),
+                    "light_min":      round(light / 60),
+                    "rem_min":        round(rem   / 60),
+                    "awake_min":      round(awake / 60),
+                    "bedtime":        _ms_to_hhmm(st),
+                    "wakeTime":       _ms_to_hhmm(et),
+                    "score":          score,
+                })
+        except Exception:
+            pass
+
+        current += timedelta(days=1)
+
+    # ── Activités (fetch groupé)
+    activities_out = []
+    try:
+        acts = client.get_activities_by_date(
+            start_d.strftime("%Y-%m-%d"),
+            end_d.strftime("%Y-%m-%d")
+        ) or []
+        for act in acts[:300]:
+            try:
+                atype = act.get("activityType") or {}
+                if isinstance(atype, dict):
+                    atype = atype.get("typeKey", "")
+                activities_out.append({
+                    "date":         (act.get("startTimeLocal") or "")[:10],
+                    "type":         atype,
+                    "name":         act.get("activityName", ""),
+                    "duration_min": round((act.get("duration") or 0) / 60),
+                    "distance_km":  round((act.get("distance") or 0) / 1000, 2),
+                    "calories":     round(act.get("calories") or 0),
+                    "maxHR":        act.get("maxHR"),
+                    "avgHR":        act.get("averageHR"),
+                    "vo2max":       act.get("vO2MaxValue"),
+                })
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return wellness_out, sleep_out, activities_out
+
+
+# ──────────────────────────────────────────────
 # ROUTES
 # ──────────────────────────────────────────────
 @app.route("/")
@@ -490,6 +639,70 @@ def api_delete_meal(meal_id):
             if p.exists(): p.unlink()
         c.execute("DELETE FROM meals WHERE id=?", [meal_id])
     return jsonify({"ok": True})
+
+
+# ──────────────────────────────────────────────
+# GARMIN CONNECT — ROUTES
+# ──────────────────────────────────────────────
+@app.route("/api/garmin-status")
+def api_garmin_status():
+    configured = bool(os.environ.get("GARMIN_EMAIL") and os.environ.get("GARMIN_PASSWORD"))
+    return jsonify({"configured": configured, "available": _GARMIN_AVAILABLE})
+
+
+@app.route("/api/sync-garmin", methods=["POST"])
+def api_sync_garmin():
+    if not _GARMIN_AVAILABLE:
+        return jsonify({"error": "Package 'garminconnect' non installé."}), 500
+
+    body = request.get_json(silent=True) or {}
+    days = max(1, min(int(body.get("days", 30)), 90))
+
+    try:
+        client = _garmin_client()
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        msg = str(e)
+        if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
+            return jsonify({
+                "error": "Authentification 2FA requise. Désactivez la 2FA sur votre compte Garmin Connect pour utiliser la synchronisation automatique.",
+                "mfa_required": True
+            }), 401
+        return jsonify({"error": f"Connexion Garmin échouée : {msg}"}), 401
+
+    try:
+        new_wellness, new_sleep, new_activities = _fetch_garmin_api(client, days)
+    except Exception as e:
+        return jsonify({"error": f"Erreur récupération : {str(e)}"}), 500
+
+    # Fusionner avec les données existantes (les nouvelles écrasent par date)
+    existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
+
+    def _merge(old, new):
+        by_date = {item["date"]: item for item in old if "date" in item}
+        for item in new:
+            if "date" in item:
+                by_date[item["date"]] = item
+        return sorted(by_date.values(), key=lambda x: x["date"])
+
+    merged = {
+        "wellness":   _merge(existing.get("wellness",   []), new_wellness)[-365:],
+        "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
+        "activities": _merge(existing.get("activities", []), new_activities)[:300],
+        "customer":   existing.get("customer", {}),
+    }
+    save_to_db(merged)
+
+    return jsonify({
+        "ok":   True,
+        "data": merged,
+        "synced": {
+            "wellness":   len(new_wellness),
+            "sleep":      len(new_sleep),
+            "activities": len(new_activities),
+        }
+    })
 
 
 if __name__ == "__main__":

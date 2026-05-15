@@ -885,4 +885,62 @@ function initNutriDrop(){
   inp.addEventListener('change',()=>{if(inp.files[0])analyzePhoto(inp.files[0]);});
 }
 // Init au chargement
-document.addEventListener('DOMContentLoaded', initNutriDrop);
+document.addEventListener('DOMContentLoaded', ()=>{
+  initNutriDrop();
+  initGarminSync();
+});
+
+// ══════════════════════════════════════════
+// GARMIN CONNECT — SYNC AUTO
+// ══════════════════════════════════════════
+async function initGarminSync(){
+  try{
+    const r = await fetch('/api/garmin-status');
+    const j = await r.json();
+    if(j.configured && j.available){
+      const btn = document.getElementById('syncGarminBtn');
+      if(btn) btn.style.display='';
+    }
+  }catch(e){}
+}
+
+async function syncGarmin(days=30){
+  const btn   = document.getElementById('syncGarminBtn');
+  const label = document.getElementById('syncLabel');
+  if(!btn) return;
+
+  // UI — loading
+  btn.disabled = true;
+  const origLabel = label.textContent;
+  label.textContent = 'Sync…';
+  btn.style.opacity = '0.7';
+
+  try{
+    const res = await fetch('/api/sync-garmin',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({days})
+    });
+    const j = await res.json();
+
+    if(!res.ok || j.error){
+      alert('❌ ' + (j.error || 'Erreur synchronisation'));
+      return;
+    }
+
+    // Mise à jour des données sans rechargement
+    appData = j.data;
+    localStorage.setItem(LS_KEY, JSON.stringify({ts: Date.now(), data: appData}));
+    renderView(curView);
+
+    const {wellness=0, sleep=0, activities=0} = j.synced || {};
+    label.textContent = `✓ ${wellness}j`;
+    setTimeout(()=>{ label.textContent = origLabel; btn.disabled=false; btn.style.opacity=''; }, 3000);
+
+  }catch(e){
+    alert('❌ Serveur inaccessible');
+    label.textContent = origLabel;
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+}
