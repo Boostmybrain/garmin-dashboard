@@ -684,34 +684,40 @@ def api_analyze_meal():
         "Tu es un nutritionniste expert et diététicien clinique avec 20 ans d'expérience. "
         "Tu maîtrises parfaitement les tables nutritionnelles Ciqual (France) et USDA. "
         "Tu estimes les portions avec précision en analysant la taille des récipients, des ustensiles visibles et les proportions relatives des aliments. "
-        "Tes analyses sont rigoureuses, détaillées et cohérentes avec les standards professionnels."
+        "Tes analyses sont rigoureuses, détaillées et cohérentes avec les standards professionnels. "
+        "Tu raisonnes toujours étape par étape avant de donner un résultat."
     )
 
     prompt = (
-        "Analyse cette photo de repas étape par étape :\n\n"
+        "Analyse cette photo de repas. Raisonne à voix haute étape par étape, PUIS fournis le JSON.\n\n"
         "ÉTAPE 1 — IDENTIFICATION\n"
-        "Liste chaque aliment visible avec sa description précise (ex: riz blanc cuit, poulet grillé sans peau, salade verte, sauce vinaigrette).\n\n"
-        "ÉTAPE 2 — ESTIMATION DES PORTIONS\n"
-        "Pour chaque aliment, estime le poids en grammes en te basant sur :\n"
-        "- La taille standard des assiettes/bols (assiette normale ≈ 26cm, bol soupe ≈ 400ml)\n"
-        "- Les proportions visuelles entre les aliments\n"
-        "- Les portions habituelles (ex: steak = 150-200g, portion de riz cuit = 150-200g)\n"
-        "- La densité visuelle (aliment tassé vs léger)\n\n"
-        "ÉTAPE 3 — CALCUL NUTRITIONNEL\n"
-        "Pour chaque aliment, calcule les macros avec les valeurs Ciqual/USDA pour 100g puis multiplie par la portion.\n"
-        "Tiens compte du mode de cuisson visible (frit +matière grasse, poêlé +huile, vapeur/eau = valeurs de base).\n\n"
-        "ÉTAPE 4 — JSON FINAL\n"
-        "Réponds UNIQUEMENT avec un objet JSON valide (sans texte avant/après, sans balises markdown) :\n"
+        "Décris chaque aliment visible avec précision (nom, préparation, couleur, texture).\n\n"
+        "ÉTAPE 2 — ESTIMATION DES PORTIONS (en grammes)\n"
+        "Pour chaque aliment, raisonne ainsi :\n"
+        "  - Quelle est la taille du récipient ? (assiette standard 26cm ≈ surface utile ~450cm², bol 400ml, etc.)\n"
+        "  - Quelle fraction de l'assiette/bol occupe cet aliment ?\n"
+        "  - Quelle est la hauteur/épaisseur visible ?\n"
+        "  - Conclusion : X grammes (justifie)\n\n"
+        "ÉTAPE 3 — CALCUL LIGNE PAR LIGNE\n"
+        "Pour chaque aliment, écris :\n"
+        "  Aliment (Xg) : valeurs pour 100g selon Ciqual = kcal/P/G/L → pour Xg = kcal/P/G/L\n"
+        "  Inclure huile/beurre si cuisson à la poêle (estimer 5-15g de matière grasse absorbée).\n\n"
+        "ÉTAPE 4 — TOTAUX\n"
+        "Additionne chaque colonne et vérifie la cohérence (calories = P×4 + G×4 + L×9).\n\n"
+        "ÉTAPE 5 — JSON FINAL\n"
+        "Termine ta réponse avec ce bloc JSON (et RIEN après) :\n"
+        "```json\n"
         '{"description":"Nom précis du repas","calories":520,"proteines":32,"glucides":58,'
         '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
-        '"aliments":["Poulet grillé sans peau 160g — 176 kcal, P:33g G:0g L:4g","Riz blanc cuit 200g — 260 kcal, P:5g G:57g L:0g","Haricots verts vapeur 100g — 27 kcal, P:2g G:5g L:0g"]}'
+        '"aliments":["Poulet grillé sans peau 160g — 176 kcal, P:33g G:0g L:4g","Riz blanc cuit 200g — 260 kcal, P:5g G:57g L:0g","Haricots verts vapeur 100g — 27 kcal, P:2g G:5g L:0g"]}\n'
+        "```"
     )
 
     try:
         client = _OpenAI(api_key=api_key)
         msg = client.chat.completions.create(
             model="gpt-4o",
-            max_tokens=1500,
+            max_tokens=2500,
             temperature=0,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -728,9 +734,19 @@ def api_analyze_meal():
             ]
         )
         raw = msg.choices[0].message.content.strip()
-        # Nettoyer les balises ```json si présentes
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
+        # Extraire le JSON depuis la réponse chain-of-thought
+        # Chercher le dernier bloc ```json ... ``` ou le dernier { ... }
+        json_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw)
+        if json_match:
+            raw = json_match.group(1)
+        else:
+            # Fallback : extraire le dernier objet JSON de la réponse
+            json_match = re.search(r"(\{[^{}]*\"calories\"[^{}]*\})", raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group(1)
+            else:
+                raw = re.sub(r"^```(?:json)?\s*", "", raw)
+                raw = re.sub(r"\s*```$", "", raw)
         nutrition = json.loads(raw)
     except json.JSONDecodeError as e:
         img_path.unlink(missing_ok=True)
