@@ -1,5 +1,5 @@
 // ── Service Worker — Mon Coach Garmin Dashboard
-const CACHE = 'garmin-v3';
+const CACHE = 'garmin-v4';
 const STATIC = [
   '/',
   '/static/style.css',
