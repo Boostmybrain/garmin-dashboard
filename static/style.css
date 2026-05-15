@@ -565,18 +565,57 @@ button,-webkit-tap-highlight-color:transparent;
   .dtb-sub{display:none}
 }
 
-/* Totaux journaliers */
-.nutri-day-total{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;
+/* Barre objectifs du jour */
+.nutri-objectives-bar{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:12px 16px;margin-bottom:14px;
+  box-shadow:var(--sh);gap:0;flex-wrap:wrap;
 }
-.nutri-day-card{background:var(--surface);border:1px solid var(--border);
-  border-radius:14px;padding:14px;text-align:center;box-shadow:var(--sh)}
-.nutri-day-val{font-size:22px;font-weight:800;margin-bottom:2px}
-.nutri-day-lbl{font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.nutri-day-target{font-size:10px;color:var(--text2);margin-top:2px}
-.nutri-day-bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
-.nutri-day-bar-fill{height:5px;border-radius:3px;transition:width .5s}
-.nutri-day-remain{font-size:10px;margin-top:4px;font-weight:600}
+.noi{display:flex;align-items:center;gap:6px;padding:4px 16px;flex-shrink:0}
+.noi-emoji{font-size:16px;line-height:1}
+.noi-val{font-size:16px;font-weight:800;line-height:1}
+.noi-unit{font-size:11px;color:var(--text2);font-weight:500}
+.noi-sep{width:1px;height:28px;background:var(--border);flex-shrink:0}
+
+/* Camemberts macros */
+.nutri-donuts-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;
+}
+.nutri-donut-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:16px 10px 14px;text-align:center;
+  box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+.nutri-donut-wrap{
+  position:relative;width:110px;height:110px;flex-shrink:0;
+}
+.nutri-donut-wrap canvas{width:110px!important;height:110px!important}
+.nutri-donut-pct{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;pointer-events:none;
+}
+.nutri-donut-lbl{
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--text2);
+}
+.nutri-donut-remain{
+  font-size:11.5px;font-weight:600;color:var(--text2);line-height:1.3;text-align:center;
+}
+
+@media(max-width:768px){
+  .nutri-donuts-row{grid-template-columns:repeat(2,1fr)}
+  .nutri-objectives-bar{gap:0;padding:10px 8px}
+  .noi{padding:4px 10px}
+  .noi-val{font-size:14px}
+}
+@media(max-width:480px){
+  .nutri-objectives-bar{flex-wrap:wrap;gap:4px}
+  .noi-sep{display:none}
+  .noi{padding:4px 8px;flex:1;justify-content:center;min-width:calc(50% - 8px);border-radius:8px;background:var(--surface2)}
+  .nutri-donut-wrap{width:90px;height:90px}
+  .nutri-donut-wrap canvas{width:90px!important;height:90px!important}
+}
 
 /* Responsive */
 @media(max-width:768px){

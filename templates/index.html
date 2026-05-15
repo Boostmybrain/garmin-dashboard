@@ -387,12 +387,43 @@
         </button>
       </div>
 
-      <!-- Totaux du jour -->
-      <div class="nutri-day-total">
-        <div class="nutri-day-card" id="dt-cal"></div>
-        <div class="nutri-day-card" id="dt-prot"></div>
-        <div class="nutri-day-card" id="dt-gluc"></div>
-        <div class="nutri-day-card" id="dt-lip"></div>
+      <!-- Objectifs du jour (ligne) -->
+      <div class="nutri-objectives-bar" id="nutriObjectivesBar"></div>
+
+      <!-- Camemberts macros -->
+      <div class="nutri-donuts-row">
+        <div class="nutri-donut-card">
+          <div class="nutri-donut-wrap">
+            <canvas id="dc-cal"></canvas>
+            <div class="nutri-donut-pct" id="dcp-cal">0%</div>
+          </div>
+          <div class="nutri-donut-lbl">Calories</div>
+          <div class="nutri-donut-remain" id="dr-cal">—</div>
+        </div>
+        <div class="nutri-donut-card">
+          <div class="nutri-donut-wrap">
+            <canvas id="dc-prot"></canvas>
+            <div class="nutri-donut-pct" id="dcp-prot">0%</div>
+          </div>
+          <div class="nutri-donut-lbl">Protéines</div>
+          <div class="nutri-donut-remain" id="dr-prot">—</div>
+        </div>
+        <div class="nutri-donut-card">
+          <div class="nutri-donut-wrap">
+            <canvas id="dc-gluc"></canvas>
+            <div class="nutri-donut-pct" id="dcp-gluc">0%</div>
+          </div>
+          <div class="nutri-donut-lbl">Glucides</div>
+          <div class="nutri-donut-remain" id="dr-gluc">—</div>
+        </div>
+        <div class="nutri-donut-card">
+          <div class="nutri-donut-wrap">
+            <canvas id="dc-lip"></canvas>
+            <div class="nutri-donut-pct" id="dcp-lip">0%</div>
+          </div>
+          <div class="nutri-donut-lbl">Lipides</div>
+          <div class="nutri-donut-remain" id="dr-lip">—</div>
+        </div>
       </div>
 
       <!-- Zone upload photo -->

@@ -743,33 +743,75 @@ function renderNutriResult(n, containerId){
   setTimeout(()=>renderMacroDonut('nutriDonutResult',n.proteines||0,n.glucides||0,n.lipides||0),50);
 }
 
-// ── Totaux du jour
+// ── Totaux du jour — barre objectifs + camemberts
 function renderDayTotals(meals){
   const tot={cal:0,prot:0,gluc:0,lip:0};
   meals.forEach(m=>{tot.cal+=m.calories||0;tot.prot+=m.proteines||0;tot.gluc+=m.glucides||0;tot.lip+=m.lipides||0;});
   const targets=DAY_TARGETS[currentDayType]||DAY_TARGETS.intermediaire;
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const emptyCol=isDark?'#334155':'#E5E7EB';
+  const RED='#EF4444';
+
+  // ── Barre objectifs
+  const objBar=document.getElementById('nutriObjectivesBar');
+  if(objBar){
+    objBar.innerHTML=`
+      <div class="noi"><span class="noi-emoji">🎯</span><span class="noi-val" style="color:${MACRO_COLORS.cal}">${targets.cal}</span><span class="noi-unit">kcal</span></div>
+      <div class="noi-sep"></div>
+      <div class="noi"><span class="noi-emoji">🥩</span><span class="noi-val" style="color:${MACRO_COLORS.prot}">${targets.prot}g</span><span class="noi-unit">protéines</span></div>
+      <div class="noi-sep"></div>
+      <div class="noi"><span class="noi-emoji">🍞</span><span class="noi-val" style="color:${MACRO_COLORS.gluc}">${targets.gluc}g</span><span class="noi-unit">glucides</span></div>
+      <div class="noi-sep"></div>
+      <div class="noi"><span class="noi-emoji">🥑</span><span class="noi-val" style="color:${MACRO_COLORS.lip}">${targets.lip}g</span><span class="noi-unit">lipides</span></div>`;
+  }
+
+  // ── Camemberts
   const defs=[
-    {id:'dt-cal',val:tot.cal,unit:'kcal',lbl:'Calories',col:MACRO_COLORS.cal,max:targets.cal},
-    {id:'dt-prot',val:tot.prot,unit:'g',lbl:'Protéines',col:MACRO_COLORS.prot,max:targets.prot},
-    {id:'dt-gluc',val:tot.gluc,unit:'g',lbl:'Glucides',col:MACRO_COLORS.gluc,max:targets.gluc},
-    {id:'dt-lip',val:tot.lip,unit:'g',lbl:'Lipides',col:MACRO_COLORS.lip,max:targets.lip},
+    {id:'cal', val:tot.cal, unit:'kcal', col:MACRO_COLORS.cal,  max:targets.cal},
+    {id:'prot',val:tot.prot,unit:'g',    col:MACRO_COLORS.prot, max:targets.prot},
+    {id:'gluc',val:tot.gluc,unit:'g',    col:MACRO_COLORS.gluc, max:targets.gluc},
+    {id:'lip', val:tot.lip, unit:'g',    col:MACRO_COLORS.lip,  max:targets.lip},
   ];
+
   defs.forEach(d=>{
-    const el=document.getElementById(d.id);
-    if(!el)return;
-    const pct=Math.min(100,Math.round(d.val/d.max*100));
-    const over=d.val>d.max;
-    const remain=Math.abs(d.max-d.val);
-    const barCol=over?'var(--red)':d.col;
-    el.innerHTML=`
-      <div class="nutri-day-val" style="color:${over?'var(--red)':d.col}">${d.val}</div>
-      <div class="nutri-day-lbl">${d.lbl} <span style="color:var(--text2);font-weight:400">${d.unit}</span></div>
-      <div class="nutri-day-target">Objectif : ${d.max} ${d.unit}</div>
-      <div class="nutri-day-bar" style="margin-top:6px"><div class="nutri-day-bar-fill" style="width:${pct}%;background:${barCol}"></div></div>
-      <div class="nutri-day-remain" style="color:${over?'var(--red)':'var(--text2)'}">
-        ${pct}% · ${over?`+${remain} ${d.unit} excès`:`${remain} ${d.unit} restants`}
-      </div>`;
+    const pct   =Math.min(100,Math.round(d.val/d.max*100));
+    const over  =d.val>d.max;
+    const remain=Math.max(0,d.max-d.val);
+    const col   =over?RED:d.col;
+
+    // Centre %
+    const pctEl=document.getElementById('dcp-'+d.id);
+    if(pctEl){
+      pctEl.innerHTML=`<span style="color:${col};font-size:17px;font-weight:800">${pct}%</span>`;
+    }
+
+    // Texte restant
+    const remEl=document.getElementById('dr-'+d.id);
+    if(remEl){
+      remEl.style.color=over?RED:'';
+      remEl.textContent=over?`+${d.val-d.max} ${d.unit} excès`:`${remain} ${d.unit} restants`;
+    }
+
+    // Graphe
+    dc('dc-'+d.id);
+    const canvas=document.getElementById('dc-'+d.id);
+    if(!canvas)return;
+    charts['dc-'+d.id]=new Chart(canvas,{
+      type:'doughnut',
+      data:{datasets:[{
+        data:[d.val, Math.max(0,d.max-d.val)],
+        backgroundColor:[col, emptyCol],
+        borderWidth:0,
+        cutout:'76%',
+      }]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{enabled:false}},
+        animation:{duration:500},
+      }
+    });
   });
+
   syncDayTypeBtns();
 }
 
