@@ -909,38 +909,63 @@ async function syncGarmin(days=30){
   const label = document.getElementById('syncLabel');
   if(!btn) return;
 
-  // UI — loading
   btn.disabled = true;
   const origLabel = label.textContent;
-  label.textContent = 'Sync…';
+  label.textContent = 'Démarrage…';
   btn.style.opacity = '0.7';
 
   try{
+    // Lancer le sync en arrière-plan
     const res = await fetch('/api/sync-garmin',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({days})
     });
     const j = await res.json();
+    if(!res.ok || j.error){ alert('❌ ' + (j.error||'Erreur')); _syncReset(btn,label,origLabel); return; }
 
-    if(!res.ok || j.error){
-      alert('❌ ' + (j.error || 'Erreur synchronisation'));
-      return;
-    }
-
-    // Mise à jour des données sans rechargement
-    appData = j.data;
-    localStorage.setItem(LS_KEY, JSON.stringify({ts: Date.now(), data: appData}));
-    renderView(curView);
-
-    const {wellness=0, sleep=0, activities=0} = j.synced || {};
-    label.textContent = `✓ ${wellness}j`;
-    setTimeout(()=>{ label.textContent = origLabel; btn.disabled=false; btn.style.opacity=''; }, 3000);
-
+    // Poller le statut toutes les 3s
+    _pollSync(btn, label, origLabel);
   }catch(e){
-    alert('❌ Serveur inaccessible');
-    label.textContent = origLabel;
-    btn.disabled = false;
-    btn.style.opacity = '';
+    alert('❌ Serveur inaccessible. Vérifiez Railway → Deployments.');
+    _syncReset(btn, label, origLabel);
+  }
+}
+
+function _syncReset(btn, label, origLabel){
+  label.textContent = origLabel;
+  btn.disabled = false;
+  btn.style.opacity = '';
+}
+
+async function _pollSync(btn, label, origLabel, attempts=0){
+  if(attempts > 40){ // timeout 2 min
+    alert('❌ Sync trop long. Vérifiez vos identifiants Garmin.');
+    _syncReset(btn, label, origLabel);
+    return;
+  }
+  try{
+    const r = await fetch('/api/sync-garmin/status');
+    const s = await r.json();
+
+    label.textContent = s.progress || 'Sync…';
+
+    if(s.status === 'running' || s.status === 'started'){
+      setTimeout(()=>_pollSync(btn, label, origLabel, attempts+1), 3000);
+    } else if(s.status === 'done' && s.result){
+      appData = s.result.data;
+      localStorage.setItem(LS_KEY, JSON.stringify({ts: Date.now(), data: appData}));
+      renderView(curView);
+      const {wellness=0} = s.result.synced || {};
+      label.textContent = `✓ ${wellness}j synchro`;
+      setTimeout(()=>_syncReset(btn, label, origLabel), 4000);
+    } else if(s.status === 'error'){
+      alert('❌ ' + (s.progress || 'Erreur sync'));
+      _syncReset(btn, label, origLabel);
+    } else {
+      setTimeout(()=>_pollSync(btn, label, origLabel, attempts+1), 3000);
+    }
+  }catch(e){
+    setTimeout(()=>_pollSync(btn, label, origLabel, attempts+1), 3000);
   }
 }

@@ -2,7 +2,7 @@
 Garmin Dashboard – Backend Flask
 Lancer : python app.py  →  http://localhost:5000
 """
-import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid
+import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid, threading
 from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -650,6 +650,48 @@ def api_garmin_status():
     return jsonify({"configured": configured, "available": _GARMIN_AVAILABLE})
 
 
+# État du sync en arrière-plan
+_sync_state = {"status": "idle", "progress": "", "result": None}
+
+def _run_sync_background(days):
+    global _sync_state
+    _sync_state = {"status": "running", "progress": "Connexion à Garmin Connect…", "result": None}
+    try:
+        client = _garmin_client()
+        _sync_state["progress"] = f"Récupération des données ({days} jours)…"
+        new_wellness, new_sleep, new_activities = _fetch_garmin_api(client, days)
+
+        existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
+        def _merge(old, new):
+            by_date = {item["date"]: item for item in old if "date" in item}
+            for item in new:
+                if "date" in item:
+                    by_date[item["date"]] = item
+            return sorted(by_date.values(), key=lambda x: x["date"])
+
+        merged = {
+            "wellness":   _merge(existing.get("wellness",   []), new_wellness)[-365:],
+            "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
+            "activities": _merge(existing.get("activities", []), new_activities)[:300],
+            "customer":   existing.get("customer", {}),
+        }
+        save_to_db(merged)
+        _sync_state = {
+            "status": "done",
+            "progress": "Synchronisation terminée",
+            "result": {
+                "ok": True,
+                "data": merged,
+                "synced": {"wellness": len(new_wellness), "sleep": len(new_sleep), "activities": len(new_activities)}
+            }
+        }
+    except Exception as e:
+        msg = str(e)
+        if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
+            msg = "2FA requise : désactivez-la sur connect.garmin.com"
+        _sync_state = {"status": "error", "progress": msg, "result": None}
+
+
 @app.route("/api/sync-garmin", methods=["POST"])
 def api_sync_garmin():
     if not _GARMIN_AVAILABLE:
@@ -658,51 +700,18 @@ def api_sync_garmin():
     body = request.get_json(silent=True) or {}
     days = max(1, min(int(body.get("days", 30)), 90))
 
-    try:
-        client = _garmin_client()
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        msg = str(e)
-        if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
-            return jsonify({
-                "error": "Authentification 2FA requise. Désactivez la 2FA sur votre compte Garmin Connect pour utiliser la synchronisation automatique.",
-                "mfa_required": True
-            }), 401
-        return jsonify({"error": f"Connexion Garmin échouée : {msg}"}), 401
+    # Si un sync tourne déjà, ne pas en lancer un deuxième
+    if _sync_state.get("status") == "running":
+        return jsonify({"ok": True, "status": "running", "progress": _sync_state.get("progress", "")})
 
-    try:
-        new_wellness, new_sleep, new_activities = _fetch_garmin_api(client, days)
-    except Exception as e:
-        return jsonify({"error": f"Erreur récupération : {str(e)}"}), 500
+    t = threading.Thread(target=_run_sync_background, args=(days,), daemon=True)
+    t.start()
+    return jsonify({"ok": True, "status": "started", "progress": "Démarrage…"})
 
-    # Fusionner avec les données existantes (les nouvelles écrasent par date)
-    existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
 
-    def _merge(old, new):
-        by_date = {item["date"]: item for item in old if "date" in item}
-        for item in new:
-            if "date" in item:
-                by_date[item["date"]] = item
-        return sorted(by_date.values(), key=lambda x: x["date"])
-
-    merged = {
-        "wellness":   _merge(existing.get("wellness",   []), new_wellness)[-365:],
-        "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
-        "activities": _merge(existing.get("activities", []), new_activities)[:300],
-        "customer":   existing.get("customer", {}),
-    }
-    save_to_db(merged)
-
-    return jsonify({
-        "ok":   True,
-        "data": merged,
-        "synced": {
-            "wellness":   len(new_wellness),
-            "sleep":      len(new_sleep),
-            "activities": len(new_activities),
-        }
-    })
+@app.route("/api/sync-garmin/status")
+def api_sync_garmin_status():
+    return jsonify(_sync_state)
 
 
 if __name__ == "__main__":
