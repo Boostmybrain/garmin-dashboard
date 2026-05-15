@@ -897,7 +897,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // PLANNING — TRAINING WEEK
 // ══════════════════════════════════════
 let trainingPlan = [];
-let _openedSession = null; // évite les problèmes de quotes en onclick
+let _openedSession = null;
+let _todaySession  = null;
 
 async function loadTrainingPlan(){
   try{
@@ -953,11 +954,12 @@ function formatSessionHtml(content){
 function renderTodayWidget(){
   const wrap = document.getElementById('todayTrainingWidget');
   if(!wrap) return;
-  const session = getTodaySession();
-  if(!session){ wrap.innerHTML=''; return; }
+  _todaySession = getTodaySession();
+  if(!_todaySession){ wrap.innerHTML=''; return; }
+  const s = _todaySession;
 
   // Aperçu : 5 premières lignes non vides
-  const previewLines = session.content.split('\n').filter(l=>l.trim()).slice(0,5);
+  const previewLines = s.content.split('\n').filter(l=>l.trim()).slice(0,5);
   const previewHtml = previewLines.map(l=>{
     const t = l.trim();
     if(/^[🏋️🔥⚡🧘🏃🎯⚠️👉🥤]/.test(t))
@@ -969,19 +971,23 @@ function renderTodayWidget(){
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
       🏋️ Entraînement du jour
     </div>
-    <div class="today-training-card" style="border-left-color:${session.color};cursor:pointer" onclick="openDayDetailById(${trainingPlan.indexOf(session)})">
+    <div class="today-training-card" style="border-left-color:${s.color}">
       <div class="tcard-header">
         <div>
-          <div class="tcard-title">${session.title}</div>
-          <div class="tcard-sub">${session.day_name} ${session.day_num}</div>
+          <div class="tcard-title">${s.title}</div>
+          <div class="tcard-sub">${s.day_name} ${s.day_num}</div>
         </div>
-        <div class="tcard-badge" style="background:${session.color}20;color:${session.color}">Aujourd'hui</div>
+        <div class="tcard-badge" style="background:${s.color}20;color:${s.color}">Aujourd'hui</div>
       </div>
       <div class="tcard-body" style="margin-top:8px">${previewHtml}</div>
-      <button class="tcard-expand" onclick="event.stopPropagation();openDayDetailById(${trainingPlan.indexOf(session)})">
+      <button class="tcard-expand" onclick="openTodayDetail()">
         Voir la séance complète →
       </button>
     </div>`;
+}
+
+function openTodayDetail(){
+  if(_todaySession) openDayDetail(_todaySession);
 }
 
 function renderWeekPlan(){
