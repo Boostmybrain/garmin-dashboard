@@ -368,6 +368,25 @@
     <!-- ══════════════ NUTRITION ══════════════ -->
     <div class="view" id="view-nutrition">
 
+      <!-- Sélecteur type de journée -->
+      <div class="day-type-selector">
+        <button class="day-type-btn" data-type="dur" onclick="selectDayType('dur')">
+          <span class="dtb-emoji">💪</span>
+          <span class="dtb-label">Jour dur</span>
+          <span class="dtb-sub">Fractionné / Hyrox / sortie longue</span>
+        </button>
+        <button class="day-type-btn" data-type="intermediaire" onclick="selectDayType('intermediaire')">
+          <span class="dtb-emoji">⚡</span>
+          <span class="dtb-label">Jour intermédiaire</span>
+          <span class="dtb-sub">Renfo jambes / haut du corps</span>
+        </button>
+        <button class="day-type-btn" data-type="facile" onclick="selectDayType('facile')">
+          <span class="dtb-emoji">🌿</span>
+          <span class="dtb-label">Jour facile</span>
+          <span class="dtb-sub">Recovery / EF facile / repos actif</span>
+        </button>
+      </div>
+
       <!-- Totaux du jour -->
       <div class="nutri-day-total">
         <div class="nutri-day-card" id="dt-cal"></div>

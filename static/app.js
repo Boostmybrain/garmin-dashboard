@@ -622,6 +622,30 @@ function installPWA() {
 
 const MACRO_COLORS={cal:'#FF6B35',prot:'#4A6CF7',gluc:'#22C55E',lip:'#F59E0B'};
 
+// ── Objectifs par type de journée
+const DAY_TARGETS={
+  dur:          {cal:2900,prot:150,gluc:360,lip:75},
+  intermediaire:{cal:2700,prot:150,gluc:300,lip:72},
+  facile:       {cal:2500,prot:150,gluc:240,lip:70},
+};
+const LS_DAY_TYPE='nutri_day_type_v1';
+let currentDayType=localStorage.getItem(LS_DAY_TYPE)||'intermediaire';
+
+function selectDayType(type){
+  currentDayType=type;
+  localStorage.setItem(LS_DAY_TYPE,type);
+  document.querySelectorAll('.day-type-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.type===type);
+  });
+  renderDayTotals(nutriMeals);
+}
+
+function syncDayTypeBtns(){
+  document.querySelectorAll('.day-type-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.type===currentDayType);
+  });
+}
+
 // ── Formateur heure depuis ISO string
 function fmtTime(iso){
   if(!iso)return'';
@@ -723,7 +747,7 @@ function renderNutriResult(n, containerId){
 function renderDayTotals(meals){
   const tot={cal:0,prot:0,gluc:0,lip:0};
   meals.forEach(m=>{tot.cal+=m.calories||0;tot.prot+=m.proteines||0;tot.gluc+=m.glucides||0;tot.lip+=m.lipides||0;});
-  const targets={cal:2000,prot:60,gluc:250,lip:70};
+  const targets=DAY_TARGETS[currentDayType]||DAY_TARGETS.intermediaire;
   const defs=[
     {id:'dt-cal',val:tot.cal,unit:'kcal',lbl:'Calories',col:MACRO_COLORS.cal,max:targets.cal},
     {id:'dt-prot',val:tot.prot,unit:'g',lbl:'Protéines',col:MACRO_COLORS.prot,max:targets.prot},
@@ -734,11 +758,19 @@ function renderDayTotals(meals){
     const el=document.getElementById(d.id);
     if(!el)return;
     const pct=Math.min(100,Math.round(d.val/d.max*100));
+    const over=d.val>d.max;
+    const remain=Math.abs(d.max-d.val);
+    const barCol=over?'var(--red)':d.col;
     el.innerHTML=`
-      <div class="nutri-day-val" style="color:${d.col}">${d.val}</div>
+      <div class="nutri-day-val" style="color:${over?'var(--red)':d.col}">${d.val}</div>
       <div class="nutri-day-lbl">${d.lbl} <span style="color:var(--text2);font-weight:400">${d.unit}</span></div>
-      <div class="nutri-day-bar"><div class="nutri-day-bar-fill" style="width:${pct}%;background:${d.col}"></div></div>`;
+      <div class="nutri-day-target">Objectif : ${d.max} ${d.unit}</div>
+      <div class="nutri-day-bar" style="margin-top:6px"><div class="nutri-day-bar-fill" style="width:${pct}%;background:${barCol}"></div></div>
+      <div class="nutri-day-remain" style="color:${over?'var(--red)':'var(--text2)'}">
+        ${pct}% · ${over?`+${remain} ${d.unit} excès`:`${remain} ${d.unit} restants`}
+      </div>`;
   });
+  syncDayTypeBtns();
 }
 
 // ── Historique repas

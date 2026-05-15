@@ -512,6 +512,29 @@ button,-webkit-tap-highlight-color:transparent;
   -webkit-tap-highlight-color:transparent}
 .meal-delete:hover{color:var(--red);background:#FEE2E2}
 
+/* Sélecteur type de journée */
+.day-type-selector{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;
+}
+.day-type-btn{
+  background:var(--surface);border:2px solid var(--border);border-radius:14px;
+  padding:14px 10px;cursor:pointer;text-align:center;display:flex;flex-direction:column;
+  align-items:center;gap:4px;transition:all .18s;font-family:'DM Sans',sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.day-type-btn:hover{border-color:var(--blue);background:var(--blue-l)}
+.day-type-btn.active{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 1px var(--blue)}
+.day-type-btn.active .dtb-label{color:var(--blue)}
+.dtb-emoji{font-size:22px;line-height:1}
+.dtb-label{font-size:13px;font-weight:700;color:var(--text)}
+.dtb-sub{font-size:10px;color:var(--text2);line-height:1.4;margin-top:2px}
+@media(max-width:480px){
+  .day-type-selector{grid-template-columns:1fr}
+  .day-type-btn{flex-direction:row;text-align:left;gap:10px;padding:10px 14px}
+  .dtb-emoji{font-size:20px;flex-shrink:0}
+  .dtb-sub{display:none}
+}
+
 /* Totaux journaliers */
 .nutri-day-total{
   display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;
@@ -520,8 +543,10 @@ button,-webkit-tap-highlight-color:transparent;
   border-radius:14px;padding:14px;text-align:center;box-shadow:var(--sh)}
 .nutri-day-val{font-size:22px;font-weight:800;margin-bottom:2px}
 .nutri-day-lbl{font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.nutri-day-bar{height:5px;border-radius:3px;background:var(--border);margin-top:8px;overflow:hidden}
+.nutri-day-target{font-size:10px;color:var(--text2);margin-top:2px}
+.nutri-day-bar{height:5px;border-radius:3px;background:var(--border);overflow:hidden}
 .nutri-day-bar-fill{height:5px;border-radius:3px;transition:width .5s}
+.nutri-day-remain{font-size:10px;margin-top:4px;font-weight:600}
 
 /* Responsive */
 @media(max-width:768px){
