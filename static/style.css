@@ -236,7 +236,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
   border-radius:12px;transition:color .15s,background .15s;
   -webkit-tap-highlight-color:transparent;min-height:52px;
 }
-.bnav-item svg{width:22px;height:22px;flex-shrink:0;transition:transform .15s}
+.bnav-item svg{width:20px;height:20px;flex-shrink:0;transition:transform .15s}
+.bnav-item span{font-size:9px;line-height:1}
 .bnav-item.active{color:var(--blue)}
 .bnav-item.active svg{transform:scale(1.12)}
 .bnav-item:active{background:var(--surface2)}
