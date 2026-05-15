@@ -691,7 +691,7 @@ def api_analyze_meal():
     try:
         client = _OpenAI(api_key=api_key)
         msg = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             max_tokens=800,
             messages=[{
                 "role": "user",
