@@ -990,33 +990,66 @@ function openTodayDetail(){
   if(_todaySession) openDayDetail(_todaySession);
 }
 
+let _selectedPlanIdx = -1;
+
 function renderWeekPlan(){
-  const grid = document.getElementById('weekPlanGrid');
-  if(!grid) return;
+  const listPanel   = document.getElementById('planListPanel');
+  const detailPanel = document.getElementById('planDetailPanel');
+  if(!listPanel) return;
+
   if(!trainingPlan.length){
-    grid.innerHTML=`<div class="no-plan">
+    listPanel.innerHTML=`<div class="no-plan"><p style="font-size:13px">Chargez un plan pour commencer</p></div>`;
+    detailPanel.innerHTML=`<div class="no-plan">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <p style="font-size:14px;font-weight:600;margin-bottom:6px">Aucun plan de la semaine</p>
-      <p style="font-size:13px">Cliquez sur "Charger un plan" pour ajouter vos séances</p>
+      <p style="font-size:14px;font-weight:600;margin-bottom:6px">Sélectionnez une séance</p>
     </div>`;
     return;
   }
+
   const today = new Date();
-  grid.innerHTML = trainingPlan.map((s,i)=>{
+  // Trouver l'index du jour courant (ou premier jour par défaut)
+  let defaultIdx = trainingPlan.findIndex(s=>s.day_num===today.getDate()&&s.month===today.getMonth()+1);
+  if(defaultIdx<0) defaultIdx=0;
+
+  // Rendre la liste
+  listPanel.innerHTML = trainingPlan.map((s,i)=>{
     const isToday = s.day_num===today.getDate() && s.month===today.getMonth()+1;
-    return`<div class="day-card ${isToday?'today-highlight':''}" style="border-top-color:${s.color}" onclick="openDayDetailById(${i})">
-      <div class="dc-header">
-        <div style="width:10px;height:10px;border-radius:50%;background:${s.color};flex-shrink:0"></div>
-        <div class="dc-day">${s.day_name} ${s.day_num}${isToday?" — Aujourd'hui":''}</div>
-      </div>
-      <div class="dc-title">${s.title}</div>
-      <div class="dc-preview">${s.preview}</div>
+    return`<div class="plan-day-row ${isToday?'today-row':''}" id="planRow${i}" style="border-left-color:${s.color}" onclick="selectPlanDay(${i})">
+      <div class="pdr-day" style="color:${s.color}">${s.day_name} ${s.day_num}${isToday?' · Aujourd\'hui':''}</div>
+      <div class="pdr-title">${s.title}</div>
     </div>`;
   }).join('');
+
+  // Sélectionner le jour par défaut
+  selectPlanDay(defaultIdx);
+}
+
+function selectPlanDay(idx){
+  const session = trainingPlan[idx];
+  if(!session) return;
+  _selectedPlanIdx = idx;
+
+  // Mettre à jour la sélection visuelle
+  document.querySelectorAll('.plan-day-row').forEach((el,i)=>{
+    el.classList.toggle('selected', i===idx);
+  });
+
+  // Afficher le détail dans le panneau gauche
+  const detailPanel = document.getElementById('planDetailPanel');
+  if(!detailPanel) return;
+  detailPanel.innerHTML=`
+    <div class="pdp-title">${session.title}</div>
+    <div class="pdp-sub">${session.day_name} ${session.day_num}</div>
+    <div class="pdp-body">${formatSessionHtml(session.content)}</div>`;
+
+  // Sur mobile : scroller vers le détail
+  if(window.innerWidth<=768){
+    detailPanel.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 }
 
 function openDayDetailById(idx){
-  openDayDetail(trainingPlan[idx]);
+  selectPlanDay(idx);
 }
 
 function openDayDetail(session){

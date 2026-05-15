@@ -437,7 +437,8 @@
 
     <!-- ══════════════ PLANNING ══════════════ -->
     <div class="view" id="view-planning">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <!-- Header -->
+      <div class="plan-header">
         <div>
           <h2 style="font-size:20px;font-weight:700">Planning</h2>
           <p id="planWeekLabel" style="font-size:13px;color:var(--text2);margin-top:2px">Aucun plan chargé</p>
@@ -447,11 +448,20 @@
           <span>Charger un plan</span>
         </button>
       </div>
-      <div id="weekPlanGrid" class="week-grid">
-        <div class="no-plan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <p style="font-size:14px;font-weight:600;margin-bottom:6px">Aucun plan de la semaine</p>
-          <p style="font-size:13px">Cliquez sur "Charger un plan" pour ajouter vos séances</p>
+      <!-- Layout master-detail -->
+      <div class="plan-layout" id="planLayout">
+        <!-- Panneau détail (gauche) -->
+        <div class="plan-detail-panel" id="planDetailPanel">
+          <div class="no-plan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <p style="font-size:14px;font-weight:600;margin-bottom:6px">Sélectionnez une séance</p>
+          </div>
+        </div>
+        <!-- Liste des jours (droite) -->
+        <div class="plan-list-panel" id="planListPanel">
+          <div class="no-plan">
+            <p style="font-size:13px">Chargez un plan pour commencer</p>
+          </div>
         </div>
       </div>
     </div><!-- /view-planning -->
