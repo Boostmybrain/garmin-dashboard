@@ -800,7 +800,7 @@ function renderVo2maxChart(A,cutoffStr){
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`VO2max: ${c.raw} mL/kg/min`}}},
       scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}}
+        y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}
   });
 }
 
