@@ -17,7 +17,9 @@ function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return
 // ══════════════════════════════════════════
 const fmt=m=>m==null?'—':`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
 // Convertit des heures décimales (ex: 1.75) en "1h45"
-const fmtH=h=>{const m=Math.round(h*60);return`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;};
+const fmtH=h=>{const m=Math.round(h*60);return`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`};
+// FC repos : préfère restingHR (Garmin calculé), sinon minHR (compat données anciennes)
+const rhr=d=>d.restingHR||d.minHR;
 const fmtDate=d=>{const[,mo,dy]=d.split('-');return`${parseInt(dy)} ${['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][parseInt(mo)-1]}`};
 const stressInfo=v=>{
   if(v==null||v<0)return{label:'N/A',color:'#9CA3AF'};
@@ -203,7 +205,7 @@ function calcScore(W,S){
   const l=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
   const slSc=Math.min(30,(ls.sleepTotal_min||0)/480*30);
   const stSc=(l.stress!=null&&l.stress>=0)?(100-l.stress)/100*30:15;
-  const hrSc=l.minHR?Math.max(0,Math.min(20,(80-l.minHR)/30*20)):10;
+  const hrSc=rhr(l)?Math.max(0,Math.min(20,(80-rhr(l))/30*20)):10;
   const spSc=Math.min(20,(l.steps||0)/10000*20);
   return{total:Math.round(slSc+stSc+hrSc+spSc),sleep:Math.round(slSc),stress:Math.round(stSc),hr:Math.round(hrSc),steps:Math.round(spSc)};
 }
@@ -227,7 +229,7 @@ function renderRecords(W,A,S){
   if(!W.length&&!A.length&&!S.length){grid.style.display='none';return;}
   const maxStepDay=W.reduce((best,d)=>d.steps>best.steps?d:best,{steps:0});
   const bestRun=A.filter(a=>a.type==='running'&&a.distance_km>0).reduce((b,a)=>a.distance_km>b.distance_km?a:b,{distance_km:0});
-  const lowestHR=W.filter(d=>d.minHR).reduce((b,d)=>d.minHR<b.minHR?d:b,{minHR:999});
+  const lowestHR=W.filter(d=>rhr(d)).reduce((b,d)=>rhr(d)<rhr(b)?d:b,{restingHR:null,minHR:999});
   const bestSleep=S.reduce((b,s)=>s.sleepTotal_min>b.sleepTotal_min?s:b,{sleepTotal_min:0});
   const maxCal=W.reduce((b,d)=>d.calories>b.calories?d:b,{calories:0});
   const longestAct=A.reduce((b,a)=>a.duration_min>b.duration_min?a:b,{duration_min:0});
@@ -235,7 +237,7 @@ function renderRecords(W,A,S){
   const recs=[
     {icon:'👟',val:maxStepDay.steps?(maxStepDay.steps/1000).toFixed(1)+'k':'—',lbl:'Record pas'},
     {icon:'🏃',val:bestRun.distance_km?bestRun.distance_km+' km':'—',lbl:'Meilleure course'},
-    {icon:'❤️',val:lowestHR.minHR<999?lowestHR.minHR+' bpm':'—',lbl:'FC repos min'},
+    {icon:'❤️',val:rhr(lowestHR)&&rhr(lowestHR)<999?rhr(lowestHR)+' bpm':'—',lbl:'FC repos min'},
     {icon:'😴',val:bestSleep.sleepTotal_min?fmt(bestSleep.sleepTotal_min):'—',lbl:'Meilleure nuit'},
     {icon:'🔥',val:maxCal.calories?(maxCal.calories.toLocaleString('fr-FR')+' kcal'):'—',lbl:'Max calories/jour'},
     {icon:'⏱️',val:longestAct.duration_min?longestAct.duration_min+' min':'—',lbl:'Séance la plus longue'},
@@ -359,8 +361,8 @@ function renderDashboard(){
   document.getElementById('kSleep').textContent=fmt(ls.sleepTotal_min);
   document.getElementById('kCal').textContent=(last.calories||0).toLocaleString('fr-FR');
   document.getElementById('kSteps').textContent=(last.steps||0).toLocaleString('fr-FR');
-  document.getElementById('kHR').innerHTML=`${last.minHR||'—'}<span style="font-size:14px;font-weight:400;color:var(--text2)"> bpm</span>`;
-  document.getElementById('kHRsub').textContent=`FC min · max : ${last.maxHR||'—'} bpm`;
+  document.getElementById('kHR').innerHTML=`${rhr(last)||'—'}<span style="font-size:14px;font-weight:400;color:var(--text2)"> bpm</span>`;
+  document.getElementById('kHRsub').textContent=`FC repos · max : ${last.maxHR||'—'} bpm`;
   const si=stressInfo(last.stress);
   document.getElementById('kStress').textContent=last.stress>=0?last.stress:'—';
   document.getElementById('kStressLabel').textContent=si.label;
@@ -369,13 +371,13 @@ function renderDashboard(){
   renderTrend('tSleep', calcTrend(S,'sleepTotal_min',curPeriod,false));
   renderTrend('tCal',   calcTrend(W,'calories',curPeriod,false));
   renderTrend('tSteps', calcTrend(W,'steps',curPeriod,false));
-  renderTrend('tHR',    calcTrend(W,'minHR',curPeriod,true));
+  renderTrend('tHR',    calcTrend(W.map(d=>({...d,_rhr:rhr(d)})),'_rhr',curPeriod,true));
   renderTrend('tStress',calcTrend(W.filter(d=>d.stress>=0),'stress',curPeriod,true));
 
   spark('spSleep',S.slice(-14).map(s=>s.sleepTotal_min),'#8B5CF6');
   spark('spCal',W.slice(-14).map(d=>d.calories),'#FF6B35');
   spark('spSteps',W.slice(-14).map(d=>d.steps),'#22C55E');
-  spark('spHR',W.slice(-14).map(d=>d.minHR||0),'#0EA5E9');
+  spark('spHR',W.slice(-14).map(d=>rhr(d)||0),'#0EA5E9');
   spark('spStress',W.slice(-14).map(d=>Math.max(0,d.stress||0)),'#F59E0B');
 
   document.getElementById('sleepBadge').textContent=ls.date?fmtDate(ls.date):'—';
@@ -393,7 +395,7 @@ function renderDashboard(){
   mkChart('stepsChart',{type:'bar',data:{labels:Wp.map(d=>fmtDate(d.date)),datasets:[{label:'Pas',data:Wp.map(d=>d.steps),backgroundColor:Wp.map(d=>d.steps>=10000?'#22C55E55':d.steps>=7500?'#4A6CF755':'#94A3B855'),borderColor:Wp.map(d=>d.steps>=10000?'#22C55E':d.steps>=7500?'#4A6CF7':'#94A3B8'),borderWidth:1.5,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString('fr-FR')} pas`}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
 
   const sw=Wp.filter(d=>d.stress!=null&&d.stress>=0);
-  mkChart('stressChart',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C722',borderWidth:2,pointRadius:2,fill:true,tension:.4,yAxisID:'y'},{label:'FC min',data:sw.map(d=>d.minHR||0),borderColor:'#0EA5E9',backgroundColor:'transparent',borderWidth:2,pointRadius:2,fill:false,tension:.4,yAxisID:'y2'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,position:'left',ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},min:0,max:100},y2:{display:true,position:'right',ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}}}}});
+  mkChart('stressChart',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C722',borderWidth:2,pointRadius:2,fill:true,tension:.4,yAxisID:'y'},{label:'FC repos',data:sw.map(d=>rhr(d)||0),borderColor:'#0EA5E9',backgroundColor:'transparent',borderWidth:2,pointRadius:2,fill:false,tension:.4,yAxisID:'y2'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,position:'left',ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},min:0,max:100},y2:{display:true,position:'right',ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}}}}});
 
   renderRunChart('runChart',A);
 
@@ -607,20 +609,20 @@ function setActFilter(f){actFilter=f;renderSport();}
 // ══════════════════════════════════════════
 function renderStressView(){
   const W=appData.wellness||[],Wp=byPeriod(W,curPeriod);
-  const sw=Wp.filter(d=>d.stress!=null&&d.stress>=0),hr=Wp.filter(d=>d.minHR);
+  const sw=Wp.filter(d=>d.stress!=null&&d.stress>=0),hr=Wp.filter(d=>rhr(d));
   const avgS=sw.length?Math.round(sw.reduce((s,d)=>s+d.stress,0)/sw.length):null;
-  const avgHR=hr.length?Math.round(hr.reduce((s,d)=>s+d.minHR,0)/hr.length):null;
-  const minHR=hr.length?Math.min(...hr.map(d=>d.minHR)):null;
+  const avgHR=hr.length?Math.round(hr.reduce((s,d)=>s+rhr(d),0)/hr.length):null;
+  const minRHR=hr.length?Math.min(...hr.map(d=>rhr(d))):null;
   const bestS=sw.length?Math.min(...sw.map(d=>d.stress)):null;
   document.getElementById('st_avgStress').textContent=avgS!=null?`${avgS} — ${stressInfo(avgS).label}`:'—';
   document.getElementById('st_avgHR').textContent=avgHR!=null?`${avgHR} bpm`:'—';
-  document.getElementById('st_minHR').textContent=minHR!=null?`${minHR} bpm`:'—';
+  document.getElementById('st_minHR').textContent=minRHR!=null?`${minRHR} bpm`:'—';
   document.getElementById('st_bestStress').textContent=bestS!=null?`${bestS} (${stressInfo(bestS).label})`:'—';
   document.getElementById('stressBadge2').textContent=curPeriod+'j';
   document.getElementById('hrBadge').textContent=curPeriod+'j';
 
   mkChart('stressChartFull',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C730',borderWidth:2,pointRadius:3,fill:true,tension:.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Stress: ${c.raw} — ${stressInfo(c.raw).label}`}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,min:0,max:100,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
-  mkChart('hrRestChart',{type:'line',data:{labels:hr.map(d=>fmtDate(d.date)),datasets:[{label:'FC min (repos)',data:hr.map(d=>d.minHR),borderColor:'#0EA5E9',backgroundColor:'#E0F5FF40',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},{label:'FC max',data:hr.map(d=>d.maxHR||null),borderColor:'#EF444870',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,fill:false,tension:.4,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} bpm`},grid:{color:'var(--surface2)'}}}}});
+  mkChart('hrRestChart',{type:'line',data:{labels:hr.map(d=>fmtDate(d.date)),datasets:[{label:'FC repos',data:hr.map(d=>rhr(d)),borderColor:'#0EA5E9',backgroundColor:'#E0F5FF40',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},{label:'FC max',data:hr.map(d=>d.maxHR||null),borderColor:'#EF444870',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,fill:false,tension:.4,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} bpm`},grid:{color:'var(--surface2)'}}}}});
 
   // Body Battery
   const bb=Wp.filter(d=>d.bodyBattery!=null);

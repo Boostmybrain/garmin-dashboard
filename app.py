@@ -199,7 +199,8 @@ def parse_wellness(files: dict) -> list:
             "date":                x["calendarDate"],
             "steps":               x.get("totalSteps", 0),
             "calories":            round(x.get("totalKilocalories", 0) or 0),
-            "minHR":               x.get("minHeartRate"),
+            "restingHR":           x.get("restingHeartRate"),          # FC repos Garmin (moy. sommeil)
+            "minHR":               x.get("minHeartRate"),              # min absolu (gardé pour compat)
             "maxHR":               x.get("maxHeartRate"),
             "stress":              _stress_avg(x),
             "distance_m":          x.get("totalDistanceMeters", 0),
@@ -461,6 +462,7 @@ def _fetch_garmin_api(client, days=30):
                     "date":                ds,
                     "steps":               steps,
                     "calories":            round(s.get("totalKilocalories") or 0),
+                    "restingHR":           s.get("restingHeartRate"),   # FC repos Garmin
                     "minHR":               s.get("minHeartRate"),
                     "maxHR":               s.get("maxHeartRate"),
                     "stress":              s.get("averageStressLevel"),
