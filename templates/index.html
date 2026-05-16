@@ -479,13 +479,6 @@
         </div>
         <div style="height:180px;position:relative"><canvas id="hrvChart"></canvas></div>
       </div>
-      <div class="panel-full" id="weightPanel" style="display:none">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Poids</div>
-          <span class="badge" style="background:var(--orange-l);color:var(--orange)" id="weightBadge">—</span>
-        </div>
-        <div style="height:180px;position:relative"><canvas id="weightChart"></canvas></div>
-      </div>
     </div>
 
     <!-- ══════════════ OBJECTIFS ══════════════ -->
@@ -656,6 +649,15 @@
           <span class="badge" style="background:var(--blue-l);color:var(--blue)">7j</span>
         </div>
         <div style="height:180px;position:relative"><canvas id="macroHistChart"></canvas></div>
+      </div>
+
+      <!-- Poids -->
+      <div class="panel-full" id="weightPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Évolution du poids</div>
+          <span class="badge" style="background:var(--orange-l);color:var(--orange)" id="weightBadge">—</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="weightChart"></canvas></div>
       </div>
 
     </div><!-- /view-nutrition -->

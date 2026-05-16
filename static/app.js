@@ -635,7 +635,6 @@ function renderStressView(){
   mkChart('hrRestChart',{type:'line',data:{labels:hr.map(d=>fmtDate(d.date)),datasets:[{label:'FC repos',data:hr.map(d=>rhr(d)),borderColor:'#0EA5E9',backgroundColor:'#E0F5FF40',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},{label:'FC max',data:hr.map(d=>d.maxHR||null),borderColor:'#EF444870',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,fill:false,tension:.4,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} bpm`},grid:{color:'var(--surface2)'}}}}});
 
   renderHRVChart(Wp);
-  renderWeightChart();
 
   // Body Battery
   const bb=Wp.filter(d=>d.bodyBattery!=null);
@@ -949,25 +948,50 @@ function renderHRVChart(Wp){
 }
 
 // ══════════════════════════════════════════
-// STRESS — POIDS CHART
+// NUTRITION — POIDS CHART (barres colorées)
 // ══════════════════════════════════════════
 function renderWeightChart(){
   const panel=document.getElementById('weightPanel');if(!panel)return;
-  const weight=(appData.weight||[]).slice(-curPeriod*2);
-  const filtered=weight.filter(w=>w.weight_kg);
+  const all=(appData&&appData.weight)||[];
+  const filtered=all.filter(w=>w.weight_kg).slice(-90);
   if(!filtered.length){panel.style.display='none';return;}
   panel.style.display='block';
-  document.getElementById('weightBadge').textContent=filtered[filtered.length-1].weight_kg+' kg';
+
+  const last=filtered[filtered.length-1].weight_kg;
+  const first=filtered[0].weight_kg;
+  const diff=+(last-first).toFixed(1);
+  const diffStr=(diff>0?'+':'')+diff+' kg';
+  document.getElementById('weightBadge').textContent=`${last} kg (${diffStr})`;
+
+  const vals=filtered.map(d=>d.weight_kg);
+  const yMin=+(Math.min(...vals)-1).toFixed(1);
+  const yMax=+(Math.max(...vals)+1).toFixed(1);
+
+  // Couleur : vert si descend vs première valeur, rouge si monte
+  const colors=filtered.map(d=>{
+    const delta=d.weight_kg-first;
+    return delta<=0?'#22C55ECC':'#EF4444CC';
+  });
+
   mkChart('weightChart',{
-    type:'line',
-    data:{labels:filtered.map(d=>fmtDate(d.date)),datasets:[{
-      label:'Poids',data:filtered.map(d=>d.weight_kg),borderColor:'#FF6B35',backgroundColor:'#FF6B3520',
-      borderWidth:2.5,pointRadius:3,fill:true,tension:.4
-    }]},
+    type:'bar',
+    data:{
+      labels:filtered.map(d=>fmtDate(d.date)),
+      datasets:[{
+        label:'Poids',
+        data:vals,
+        backgroundColor:colors,
+        borderColor:colors.map(c=>c.replace('CC','')),
+        borderWidth:1,
+        borderRadius:4,
+      }]
+    },
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} kg`}}},
-      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} kg`},grid:{color:'var(--surface2)'}}}}
+      scales:{
+        x:{display:true,ticks:{font:{size:9},maxTicksLimit:14,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} kg`},grid:{color:'var(--surface2)'}},
+      }}
   });
 }
 
@@ -1426,6 +1450,7 @@ async function loadNutritionHistory(){
     renderDayTotals(nutriMeals);
     renderMealHistory(nutriMeals);
     await renderMacroHistory();
+    renderWeightChart();
   }catch{nutriMeals=[];renderMealHistory([]);}
 }
 
