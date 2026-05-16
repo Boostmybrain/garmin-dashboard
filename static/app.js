@@ -103,9 +103,11 @@ const VIEW_META={
   planning:{title:'Planning',sub:'Programme de la semaine'},
 };
 function showView(v){
+  const viewEl=document.getElementById('view-'+v);
+  if(!viewEl)return; // vue inexistante (cache navigateur obsolète)
   curView=v;
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
-  document.getElementById('view-'+v).classList.add('active');
+  viewEl.classList.add('active');
   document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===v));
   const m=VIEW_META[v]||{};
   document.getElementById('viewTitle').textContent=m.title||'';
