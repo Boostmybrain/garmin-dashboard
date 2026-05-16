@@ -401,6 +401,111 @@ function renderDashboard(){
   mkChart('sleepTrend',{type:'bar',data:{labels:sl.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:sl.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:sl.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:sl.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:sl.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=items.reduce((s,c)=>s+c.raw,0);return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
 }
 
+// ── Convertit "HH:MM" en heures décimales normalisées pour le graphique coucher/lever
+// Les heures de nuit (20h–23h59) → 20–24; après minuit (00h–12h) → 24–36
+function _sleepHour(timeStr, isWake){
+  if(!timeStr) return null;
+  const parts=timeStr.split(':');
+  if(parts.length<2) return null;
+  let h=parseInt(parts[0]), m=parseInt(parts[1]);
+  if(isNaN(h)||isNaN(m)) return null;
+  const dec=h+m/60;
+  // Coucher : si avant midi → c'est après minuit → +24
+  // Lever : si avant 15h → c'est le matin → +24
+  if(isWake) return dec<15 ? dec+24 : dec;
+  return dec<14 ? dec+24 : dec;
+}
+
+function renderBedtimeChart(S){
+  const data=S.filter(s=>s.bedtime||s.wakeTime).slice(-21); // 3 dernières semaines
+  if(!data.length){ document.getElementById('bedtimeBadge').textContent='—'; return; }
+  document.getElementById('bedtimeBadge').textContent=data.length+' nuits';
+
+  const labels=data.map(s=>fmtDate(s.date));
+  const beds  =data.map(s=>_sleepHour(s.bedtime,  false));
+  const wakes =data.map(s=>_sleepHour(s.wakeTime, true));
+
+  // Floating bar : [bedtime, wakeTime] par nuit
+  const barData=data.map((_,i)=>{
+    const b=beds[i], w=wakes[i];
+    if(b==null||w==null) return null;
+    // S'assurer que wake > bed
+    return [b, w>b ? w : w+24];
+  });
+
+  // Calculer les bornes Y (heures min/max avec marge)
+  const allVals=barData.filter(Boolean).flat();
+  const yMin=Math.max(18, Math.floor(Math.min(...allVals))-0.5);
+  const yMax=Math.min(36, Math.ceil(Math.max(...allVals))+0.5);
+
+  // Formateur axe Y : heures normalisées → "HHh"
+  const tickFmt=v=>{const h=Math.round(v)%24; return`${String(h).padStart(2,'0')}h`;};
+
+  dc('bedtimeChart');
+  const canvas=document.getElementById('bedtimeChart');
+  if(!canvas) return;
+  charts['bedtimeChart']=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Sommeil',
+        data:barData,
+        backgroundColor:data.map((_,i)=>{
+          // Colorer selon durée : vert>7h, jaune 6-7h, rouge<6h
+          const b=beds[i],w=wakes[i];
+          if(b==null||w==null) return '#E5E7EB';
+          const dur=(w>b?w:w+24)-b;
+          return dur>=7?'#8B5CF6CC':dur>=6?'#F59E0BCC':'#EF4444CC';
+        }),
+        borderColor:data.map((_,i)=>{
+          const b=beds[i],w=wakes[i];
+          if(b==null||w==null) return '#E5E7EB';
+          const dur=(w>b?w:w+24)-b;
+          return dur>=7?'#8B5CF6':dur>=6?'#F59E0B':'#EF4444';
+        }),
+        borderWidth:1.5,
+        borderRadius:3,
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:items=>labels[items[0].dataIndex],
+            label:c=>{
+              const b=beds[c.dataIndex], w=wakes[c.dataIndex];
+              if(b==null||w==null) return'Données manquantes';
+              const bed=c.chart.data.datasets[0].data[c.dataIndex];
+              if(!bed) return'';
+              const dur=(bed[1]-bed[0]);
+              const durH=Math.floor(dur), durM=Math.round((dur-durH)*60);
+              const bedH=Math.floor(b%24), bedM=Math.round((b%1)*60);
+              const wkH =Math.floor(w%24), wkM =Math.round((w%1)*60);
+              return[
+                `🌙 Coucher : ${String(bedH).padStart(2,'0')}h${String(bedM).padStart(2,'0')}`,
+                `☀️ Lever   : ${String(wkH).padStart(2,'0')}h${String(wkM).padStart(2,'0')}`,
+                `⏱ Durée   : ${durH}h${String(durM).padStart(2,'0')}`,
+              ];
+            }
+          }
+        }
+      },
+      scales:{
+        x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},
+        y:{
+          min:yMin, max:yMax,
+          reverse:true,          // coucher en haut, lever en bas
+          ticks:{font:{size:9},color:'#9CA3AF',stepSize:1,callback:tickFmt},
+          grid:{color:'var(--surface2)'},
+        }
+      }
+    }
+  });
+}
+
 // ══════════════════════════════════════════
 // RENDER SOMMEIL
 // ══════════════════════════════════════════
@@ -416,6 +521,8 @@ function renderSleep(){
   document.getElementById('sl_avgBed').textContent=beds.length?beds[Math.floor(beds.length/2)]:'—';
   document.getElementById('sleepTrendBadge2').textContent=Sp.length+' nuits';
   mkChart('sleepTrendFull',{type:'bar',data:{labels:Sp.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:Sp.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:Sp.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:Sp.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:Sp.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=items.reduce((s,c)=>s+c.raw,0);return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',maxTicksLimit:12},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
+  renderBedtimeChart(S);
+
   const ls=S[S.length-1];
   document.getElementById('sleepLastBadge').textContent=ls.date?fmtDate(ls.date):'—';
   document.getElementById('sl2_inBed').textContent=fmt(ls.inBed_min);

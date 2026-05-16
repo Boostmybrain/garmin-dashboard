@@ -275,6 +275,25 @@
         </div>
         <div style="height:220px;position:relative"><canvas id="sleepTrendFull"></canvas></div>
       </div>
+      <!-- Graphique heures coucher / lever -->
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" width="20" height="20">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Heures de coucher &amp; lever
+          </div>
+          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="bedtimeBadge">—</span>
+        </div>
+        <!-- Légende -->
+        <div class="bedtime-legend">
+          <span class="bt-leg"><span class="bt-dot" style="background:#8B5CF6"></span>Endormi</span>
+          <span class="bt-leg"><span class="bt-dot" style="background:#F59E0B"></span>Éveillé</span>
+        </div>
+        <div style="height:260px;position:relative"><canvas id="bedtimeChart"></canvas></div>
+      </div>
       <div class="grid2">
         <div class="panel">
           <div class="panel-header">
