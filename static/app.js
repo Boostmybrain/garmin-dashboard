@@ -950,6 +950,59 @@ async function analyzePhoto(file){
   }
 }
 
+// ── Basculer onglets Photo / Texte
+function switchNutriTab(tab){
+  document.getElementById('tabPhoto').classList.toggle('active', tab==='photo');
+  document.getElementById('tabText').classList.toggle('active',  tab==='text');
+  document.getElementById('nutriPanelPhoto').style.display = tab==='photo' ? '' : 'none';
+  document.getElementById('nutriPanelText').style.display  = tab==='text'  ? '' : 'none';
+}
+
+// ── Remplir un exemple dans la textarea
+function fillExample(txt){
+  const ta=document.getElementById('nutriTextInput');
+  if(ta){ ta.value=txt; ta.focus(); }
+}
+
+// ── Analyser un repas saisi en texte
+async function analyzeMealText(){
+  const ta=document.getElementById('nutriTextInput');
+  const text=(ta?.value||'').trim();
+  if(!text){ ta?.focus(); return; }
+
+  const loading=document.getElementById('nutriLoading');
+  const loadTxt=document.getElementById('nutriLoadingTxt');
+  const result =document.getElementById('nutriResultWrap');
+  const errEl  =document.getElementById('nutriErr');
+
+  if(result) result.style.display='none';
+  if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
+  if(loadTxt) loadTxt.textContent='OpenAI analyse votre repas…';
+  loading.style.display='block';
+
+  try{
+    const res=await fetch('/api/analyze-meal-text',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({description: text})
+    });
+    const j=await res.json();
+    loading.style.display='none';
+    if(!res.ok||j.error){
+      if(errEl){ errEl.textContent='❌ '+j.error; errEl.style.display='block'; }
+      return;
+    }
+    renderNutriResult(j.nutrition,'nutriResultWrap');
+    nutriMeals.unshift(j.nutrition);
+    renderDayTotals(nutriMeals);
+    renderMealHistory(nutriMeals);
+    ta.value='';
+  }catch(e){
+    loading.style.display='none';
+    if(errEl){ errEl.textContent='❌ Serveur inaccessible.'; errEl.style.display='block'; }
+  }
+}
+
 // ── Init drag-and-drop zone nutrition
 function initNutriDrop(){
   const dz=document.getElementById('nutriDropZone');

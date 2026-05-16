@@ -778,6 +778,81 @@ def api_analyze_meal():
     return jsonify({"ok": True, "nutrition": nutrition})
 
 
+@app.route("/api/analyze-meal-text", methods=["POST"])
+def api_analyze_meal_text():
+    """Analyse nutritionnelle à partir d'une description textuelle."""
+    if not _OPENAI_AVAILABLE:
+        return jsonify({"error": "Package 'openai' manquant."}), 500
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "Variable OPENAI_API_KEY non définie."}), 500
+
+    data = request.get_json(force=True) or {}
+    description = (data.get("description") or "").strip()
+    if not description:
+        return jsonify({"error": "Aucune description fournie"}), 400
+
+    system_prompt = (
+        "Tu es un nutritionniste expert et diététicien clinique. "
+        "Tu maîtrises parfaitement les tables nutritionnelles Ciqual (France) et USDA. "
+        "Tu estimes les portions avec précision selon les quantités indiquées ou les standards habituels. "
+        "Tu raisonnes toujours étape par étape avant de donner un résultat."
+    )
+
+    prompt = (
+        f"Analyse ce repas décrit textuellement. Raisonne étape par étape, PUIS fournis le JSON.\n\n"
+        f"REPAS DÉCRIT : {description}\n\n"
+        "ÉTAPE 1 — IDENTIFICATION\n"
+        "Identifie chaque aliment avec sa préparation probable (grillé, bouilli, cru, sauté…).\n\n"
+        "ÉTAPE 2 — ESTIMATION DES PORTIONS (en grammes)\n"
+        "Pour chaque aliment, estime le poids en grammes selon les quantités indiquées\n"
+        "ou les portions standards habituelles (ex: 1 œuf ≈ 60g, 1 verre de lait ≈ 200ml).\n\n"
+        "ÉTAPE 3 — CALCUL LIGNE PAR LIGNE\n"
+        "Pour chaque aliment : valeurs Ciqual/USDA pour 100g → calculer pour la portion.\n"
+        "Inclure les matières grasses de cuisson si applicable.\n\n"
+        "ÉTAPE 4 — TOTAUX\n"
+        "Additionne et vérifie : calories ≈ P×4 + G×4 + L×9.\n\n"
+        "ÉTAPE 5 — JSON FINAL\n"
+        "Termine avec ce bloc JSON (rien après) :\n"
+        "```json\n"
+        '{"description":"Nom du repas","calories":520,"proteines":32,"glucides":58,'
+        '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
+        '"aliments":["Œuf brouillé 120g — 160 kcal, P:12g G:1g L:11g"]}\n'
+        "```"
+    )
+
+    try:
+        client = _OpenAI(api_key=api_key)
+        msg = client.chat.completions.create(
+            model="gpt-4o",
+            max_tokens=2000,
+            temperature=0,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": prompt},
+            ]
+        )
+        raw = msg.choices[0].message.content.strip()
+        json_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw)
+        if json_match:
+            raw = json_match.group(1)
+        else:
+            json_match = re.search(r"(\{[^{}]*\"calories\"[^{}]*\})", raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group(1)
+        nutrition = json.loads(raw)
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Réponse IA non parseable : {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    meal_id = save_meal(nutrition, None)
+    nutrition["id"]           = meal_id
+    nutrition["image_url"]    = None
+    nutrition["analyzed_at"]  = datetime.now(timezone.utc).isoformat()
+    return jsonify({"ok": True, "nutrition": nutrition})
+
+
 @app.route("/api/meals")
 def api_meals():
     date = request.args.get("date")
