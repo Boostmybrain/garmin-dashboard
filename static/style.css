@@ -80,9 +80,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
 .kpi-spark{margin-top:10px;height:34px}
 .kpi-spark canvas{width:100%!important;height:34px!important}
 
+/* ── DASHBOARD TOP ROW (entraînement + score) ── */
+.dash-top-row{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:22px;align-items:start}
+.dash-training-col{min-width:0}
+.dash-score-col{min-width:0}
+
+/* Quand il n'y a pas de séance du jour, la colonne training est vide → score prend toute la largeur */
+.dash-training-col:empty{display:none}
+.dash-training-col:empty ~ .dash-score-col{grid-column:1/-1}
+
+@media(max-width:900px){
+  .dash-top-row{grid-template-columns:1fr}
+  .dash-score-col{order:-1} /* score en premier sur mobile */
+}
+
 /* ── SCORE ── */
 .score-card{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);box-shadow:var(--sh);
-  padding:20px;display:flex;align-items:center;gap:24px;margin-bottom:22px}
+  padding:20px;display:flex;align-items:center;gap:24px;margin-bottom:0}
 .score-ring-wrap{position:relative;width:100px;height:100px;flex-shrink:0}
 .score-ring-wrap canvas{width:100px!important;height:100px!important}
 .score-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -297,6 +311,7 @@ button,-webkit-tap-highlight-color:transparent;
   .records-grid{grid-template-columns:repeat(3,1fr)}
   /* Score card empilée */
   .score-card{flex-direction:column;align-items:flex-start;gap:14px}
+  .dash-top-row{gap:12px;margin-bottom:16px}
   /* Charts moins hauts */
   .panel [style*="height:160px"]{height:130px}
   .panel-full [style*="height:180px"]{height:150px}
@@ -330,7 +345,7 @@ button,-webkit-tap-highlight-color:transparent;
 ══════════════════════════════════════ */
 .today-training-card{
   background:var(--surface);border-radius:var(--r);padding:20px;
-  box-shadow:var(--sh);border-left:4px solid var(--blue);margin-bottom:16px;
+  box-shadow:var(--sh);border-left:4px solid var(--blue);margin-bottom:0;
 }
 .today-training-card .tcard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .today-training-card .tcard-title{font-size:16px;font-weight:700}

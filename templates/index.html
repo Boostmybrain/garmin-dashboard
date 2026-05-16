@@ -100,23 +100,25 @@
     <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
 
-      <!-- Séance du jour -->
-      <div id="todayTrainingWidget"></div>
-
-      <!-- Score -->
-      <div class="score-card" id="scoreCard" style="display:none">
-        <div class="score-ring-wrap">
-          <canvas id="scoreRing"></canvas>
-          <div class="score-ring-label"><span id="scoreVal">—</span><small>/ 100</small></div>
-        </div>
-        <div class="score-info">
-          <h3 id="scoreLabel">Score de forme</h3>
-          <p id="scoreDesc">—</p>
-          <div class="score-breakdown">
-            <div class="score-item"><div class="score-item-val" id="sc_sleep">—</div><div class="score-item-lbl">Sommeil</div></div>
-            <div class="score-item"><div class="score-item-val" id="sc_stress">—</div><div class="score-item-lbl">Stress</div></div>
-            <div class="score-item"><div class="score-item-val" id="sc_hr">—</div><div class="score-item-lbl">FC repos</div></div>
-            <div class="score-item"><div class="score-item-val" id="sc_steps">—</div><div class="score-item-lbl">Activité</div></div>
+      <!-- Séance du jour + Score côte à côte -->
+      <div class="dash-top-row">
+        <div class="dash-training-col" id="todayTrainingWidget"></div>
+        <div class="dash-score-col">
+          <div class="score-card" id="scoreCard" style="display:none">
+            <div class="score-ring-wrap">
+              <canvas id="scoreRing"></canvas>
+              <div class="score-ring-label"><span id="scoreVal">—</span><small>/ 100</small></div>
+            </div>
+            <div class="score-info">
+              <h3 id="scoreLabel">Score de forme</h3>
+              <p id="scoreDesc">—</p>
+              <div class="score-breakdown">
+                <div class="score-item"><div class="score-item-val" id="sc_sleep">—</div><div class="score-item-lbl">Sommeil</div></div>
+                <div class="score-item"><div class="score-item-val" id="sc_stress">—</div><div class="score-item-lbl">Stress</div></div>
+                <div class="score-item"><div class="score-item-val" id="sc_hr">—</div><div class="score-item-lbl">FC repos</div></div>
+                <div class="score-item"><div class="score-item-val" id="sc_steps">—</div><div class="score-item-lbl">Activité</div></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
