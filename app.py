@@ -199,7 +199,10 @@ def parse_wellness(files: dict) -> list:
             "date":                x["calendarDate"],
             "steps":               x.get("totalSteps", 0),
             "calories":            round(x.get("totalKilocalories", 0) or 0),
-            "restingHR":           x.get("restingHeartRate"),          # FC repos Garmin (moy. sommeil)
+            "restingHR":           (x.get("restingHeartRate")
+                                    or x.get("averageRestingHeartRate")
+                                    or x.get("restingHr")
+                                    or x.get("minAvgHeartRate")),      # FC repos Garmin (moy. sommeil)
             "minHR":               x.get("minHeartRate"),              # min absolu (gardé pour compat)
             "maxHR":               x.get("maxHeartRate"),
             "stress":              _stress_avg(x),
@@ -640,6 +643,20 @@ def api_data():
     if data is None:
         return jsonify({"ok": False})
     return jsonify({"ok": True, "data": data})
+
+
+@app.route("/api/debug-hr")
+def api_debug_hr():
+    """Diagnostic FC repos : affiche restingHR vs minHR sur les 10 derniers jours."""
+    data = load_from_db()
+    if not data:
+        return jsonify({"ok": False, "error": "Pas de données"})
+    rows = data.get("wellness", [])[-10:]
+    result = [{"date": r["date"],
+               "restingHR": r.get("restingHR"),
+               "minHR":     r.get("minHR"),
+               "used":      r.get("restingHR") or r.get("minHR")} for r in rows]
+    return jsonify({"ok": True, "hr_debug": result})
 
 @app.route("/api/import", methods=["POST"])
 def api_import():
