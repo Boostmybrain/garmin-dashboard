@@ -325,7 +325,7 @@ function renderDashboard(){
   document.getElementById('slTotal').textContent=fmt(ls.sleepTotal_min);
   renderSleepDonut('sleepDonut','sleepPhases',ls);
 
-  document.getElementById('actList').innerHTML=A.length?A.slice(0,6).map(actHTML).join(''):EMPTY;
+  document.getElementById('actList').innerHTML=A.length?[...A].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(actHTML).join(''):EMPTY;
   document.getElementById('actBadge').textContent=A.length?`${A.length} séances`:'—';
 
   document.getElementById('stepsChartBadge').textContent=curPeriod+'j';
@@ -373,7 +373,8 @@ function renderSleep(){
 // ══════════════════════════════════════════
 function renderSport(){
   const A=appData.activities||[];
-  const filtered=actFilter==='all'?A:actFilter==='other'?A.filter(a=>!ACT_KNOWN.includes(a.type)):A.filter(a=>a.type===actFilter);
+  const sortDesc=(arr)=>[...arr].sort((a,b)=>b.date.localeCompare(a.date));
+  const filtered=sortDesc(actFilter==='all'?A:actFilter==='other'?A.filter(a=>!ACT_KNOWN.includes(a.type)):A.filter(a=>a.type===actFilter));
   const totalMin=A.reduce((s,a)=>s+(a.duration_min||0),0);
   const totalKm=A.filter(a=>a.type==='running').reduce((s,a)=>s+(a.distance_km||0),0);
   const totalCal=A.reduce((s,a)=>s+(a.calories||0),0);
