@@ -260,8 +260,9 @@ def parse_sleep(files: dict) -> list:
         if deep + light < 3600:
             continue
         inbed = 0
-        start_str = s.get("sleepStartTimestampGMT", "")
-        end_str   = s.get("sleepEndTimestampGMT",   "")
+        # Prioritise local timestamps (user's timezone) over GMT
+        start_str = (s.get("sleepStartTimestampLocal") or s.get("sleepStartTimestampGMT") or "")
+        end_str   = (s.get("sleepEndTimestampLocal")   or s.get("sleepEndTimestampGMT")   or "")
         if start_str and end_str:
             try:
                 s1 = datetime.fromisoformat(start_str.replace(".0", ""))
@@ -484,16 +485,19 @@ def _fetch_garmin_api(client, days=30):
             awake = dto.get("awakeSleepSeconds") or 0
             if deep + light >= 3600:
                 def _ms_to_hhmm(ts):
+                    """Convert Garmin timestamp (ms int or ISO string) to HH:MM in local time."""
                     if not ts: return ""
                     try:
                         if isinstance(ts, (int, float)) and ts > 1e10:
-                            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%H:%M")
+                            # Use system local timezone so times match the user's clock
+                            return datetime.fromtimestamp(ts / 1000).strftime("%H:%M")
                         return str(ts)[11:16]
                     except Exception:
                         return ""
 
-                st = dto.get("sleepStartTimestampGMT") or dto.get("sleepStartTimestampLocal")
-                et = dto.get("sleepEndTimestampGMT")   or dto.get("sleepEndTimestampLocal")
+                # Prioritise local timestamps (user's timezone) over GMT
+                st = dto.get("sleepStartTimestampLocal") or dto.get("sleepStartTimestampGMT")
+                et = dto.get("sleepEndTimestampLocal")   or dto.get("sleepEndTimestampGMT")
                 inbed = 0
                 if st and et:
                     try:
