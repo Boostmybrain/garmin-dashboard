@@ -926,6 +926,36 @@ def api_meals():
     return jsonify({"ok": True, "meals": get_meals(date)})
 
 
+@app.route("/api/weight", methods=["POST"])
+def api_add_weight():
+    """Reçoit une mesure de poids depuis le script BLE local."""
+    # Vérification clé API simple (optionnelle)
+    api_key  = request.headers.get("X-Api-Key", "")
+    expected = os.environ.get("WEIGHT_API_KEY", "")
+    if expected and api_key != expected:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    body = request.get_json(silent=True) or {}
+    weight_kg = body.get("weight_kg")
+    if not weight_kg or not (20 < float(weight_kg) < 300):
+        return jsonify({"error": "Poids invalide"}), 400
+
+    weight_kg = round(float(weight_kg), 2)
+    date = body.get("date", datetime.now().strftime("%Y-%m-%d"))
+
+    data = load_from_db()
+    if not data:
+        data = {"wellness": [], "activities": [], "sleep": [], "customer": {}, "weight": []}
+
+    weight_list = [w for w in data.get("weight", []) if w.get("date") != date]
+    weight_list.append({"date": date, "weight_kg": weight_kg, "bmi": body.get("bmi")})
+    weight_list.sort(key=lambda x: x["date"])
+    data["weight"] = weight_list[-365:]
+    save_to_db(data)
+
+    return jsonify({"ok": True, "weight_kg": weight_kg, "date": date})
+
+
 @app.route("/api/meals-history")
 def api_meals_history():
     """Aggregated macro totals per day for the past N days."""
