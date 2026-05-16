@@ -194,7 +194,10 @@ function renderRunChart(id,A){
 }
 function actHTML(a){
   const ic=actIcon(a.type);
-  return `<div class="act-item"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}</div><div class="act-date">${fmtDate(a.date)}${a.name&&a.name!==a.type?' · '+a.name:''}</div></div><div class="act-stats">${a.distance_km>0?`<div class="act-stat"><span class="v">${a.distance_km} km</span><span class="l">Distance</span></div>`:''}<div class="act-stat"><span class="v">${a.duration_min} min</span><span class="l">Durée</span></div>${a.maxHR?`<div class="act-stat"><span class="v">${a.maxHR} bpm</span><span class="l">FC max</span></div>`:''}</div></div>`;
+  const paceStr=(a.distance_km>0&&a.duration_min>0)?
+    (p=>{return Math.floor(p)+"'"+String(Math.round((p%1)*60)).padStart(2,'0')+'"'})(a.duration_min/a.distance_km)
+    :'';
+  return `<div class="act-item"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}</div><div class="act-date">${fmtDate(a.date)}${a.name&&a.name!==a.type?' · '+a.name:''}</div></div><div class="act-stats">${a.distance_km>0?`<div class="act-stat"><span class="v">${a.distance_km} km</span><span class="l">Distance</span></div>`:''}<div class="act-stat"><span class="v">${a.duration_min} min</span><span class="l">Durée</span></div>${a.avgHR?`<div class="act-stat"><span class="v">${a.avgHR} bpm</span><span class="l">FC moy</span></div>`:''  }${paceStr?`<div class="act-stat"><span class="v">${paceStr}/km</span><span class="l">Allure moy</span></div>`:''  }${a.calories?`<div class="act-stat"><span class="v">${a.calories} kcal</span><span class="l">Cal dépensées</span></div>`:''}</div></div>`;
 }
 const EMPTY=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div>`;
 
