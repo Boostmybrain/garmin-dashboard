@@ -924,26 +924,33 @@ function renderSleepCorrelation(S,W){
     const nd=nextDate.toISOString().slice(0,10);
     const w=wMap[nd];
     if(!w)return;
-    const forma=w.bodyBattery||(-w.stress);
-    if(forma==null)return;
-    pts.push({date:s.date,sleep:+(s.sleepTotal_min/60).toFixed(2),bb:w.bodyBattery,stress:w.stress>=0?w.stress:null});
+    // Body Battery prioritaire, sinon stress inversé (100-stress) comme proxy de forme
+    const bb=w.bodyBattery!=null?w.bodyBattery:(w.stress>=0?Math.max(0,100-w.stress):null);
+    if(bb==null||s.sleepTotal_min<=0)return;
+    pts.push({date:s.date,sleep:+(s.sleepTotal_min/60).toFixed(2),bb});
   });
   if(pts.length<4){panel.style.display='none';return;}
   panel.style.display='block';
+
+  // Détecter si on utilise BB réel ou proxy stress
+  const hasBB=W.some(d=>d.bodyBattery!=null);
+  const bbLabel=hasBB?'Body Battery J+1':'Forme J+1 (100−stress)';
+  const bbColor=hasBB?'#22C55E':'#F59E0B';
+
   const last30=pts.slice(-30);
   mkChart('sleepCorrChart',{
     type:'line',
     data:{labels:last30.map(p=>fmtDate(p.date)),datasets:[
       {label:'Sommeil (h)',data:last30.map(p=>p.sleep),borderColor:'#8B5CF6',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.4,yAxisID:'y'},
-      {label:'Body Battery J+1',data:last30.map(p=>p.bb),borderColor:'#22C55E',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.4,yAxisID:'y2'},
+      {label:bbLabel,data:last30.map(p=>p.bb),borderColor:bbColor,backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.4,yAxisID:'y2'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
-        tooltip:{callbacks:{label:c=>c.datasetIndex===0?`Sommeil: ${fmtH(c.raw)}`:c.raw!=null?`Body Battery J+1: ${c.raw}`:null}}},
+        tooltip:{callbacks:{label:c=>c.datasetIndex===0?`Sommeil: ${fmtH(c.raw)}`:c.raw!=null?`${bbLabel}: ${c.raw}`:null}}},
       scales:{
         x:{display:true,ticks:{font:{size:9},maxTicksLimit:10,color:'#9CA3AF'},grid:{display:false}},
         y:{display:true,position:'left',ticks:{font:{size:9},color:'#8B5CF6',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'},title:{display:true,text:'Sommeil',color:'#8B5CF6',font:{size:9}}},
-        y2:{display:true,position:'right',min:0,max:100,ticks:{font:{size:9},color:'#22C55E'},grid:{display:false},title:{display:true,text:'Body Battery',color:'#22C55E',font:{size:9}}},
+        y2:{display:true,position:'right',min:0,max:100,ticks:{font:{size:9},color:bbColor},grid:{display:false},title:{display:true,text:hasBB?'Body Battery':'Forme (0-100)',color:bbColor,font:{size:9}}},
       }}
   });
 }
