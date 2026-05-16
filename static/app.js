@@ -849,7 +849,16 @@ function renderTrainingLoad(A){
   });
   const lbls=dates.map(fmtDate);
   panel.style.display='block';
-  document.getElementById('trainingLoadBadge').textContent=`Forme : ${formArr[formArr.length-1]>0?'+':''}${formArr[formArr.length-1]}`;
+  const lastForm=formArr[formArr.length-1];
+  const lastCTL=ctlArr[ctlArr.length-1];
+  const lastATL=atlArr[atlArr.length-1];
+  let formLabel='';
+  if(lastForm>25)formLabel='⚡ Très frais';
+  else if(lastForm>5)formLabel='✅ Prêt';
+  else if(lastForm>-10)formLabel='🔄 Équilibre';
+  else if(lastForm>-30)formLabel='⚠️ Chargé';
+  else formLabel='🔴 Surcharge';
+  document.getElementById('trainingLoadBadge').textContent=`Fraîcheur ${lastForm>0?'+':''}${lastForm} — ${formLabel}`;
   mkChart('trainingLoadChart',{
     type:'line',
     data:{labels:lbls,datasets:[

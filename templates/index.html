@@ -409,9 +409,37 @@
           <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="trainingLoadBadge">—</span>
         </div>
         <div class="training-load-legend">
-          <span class="tl-leg"><span class="tl-dot" style="background:#4A6CF7"></span>Forme CTL</span>
-          <span class="tl-leg"><span class="tl-dot" style="background:#EF4444"></span>Fatigue ATL</span>
-          <span class="tl-leg"><span class="tl-dot" style="background:#22C55E"></span>Fraîcheur</span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#4A6CF7"></span>Forme CTL <span class="tl-sub">fitness à long terme (42j)</span></span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#EF4444"></span>Fatigue ATL <span class="tl-sub">fatigue récente (7j)</span></span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#22C55E"></span>Fraîcheur <span class="tl-sub">= CTL − ATL</span></span>
+          <button class="tl-info-btn" onclick="this.nextElementSibling.classList.toggle('open')">ℹ Comment lire ce graphique ?</button>
+        </div>
+        <div class="tl-info-box">
+          <div class="tl-info-grid">
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#4A6CF7">🔵 CTL — Fitness (Chronic Training Load)</span>
+              <p>Moyenne exponentielle de ta charge sur <strong>42 jours</strong>. Représente ton niveau de forme générale construit sur la durée. Monte lentement, descend lentement. Plus c'est élevé, plus tu es entraîné.</p>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#EF4444">🔴 ATL — Fatigue (Acute Training Load)</span>
+              <p>Moyenne exponentielle sur <strong>7 jours</strong>. Reflète ta fatigue accumulée récemment. Après une semaine chargée, ATL monte vite. Après du repos, il redescend en quelques jours.</p>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#22C55E">🟢 Fraîcheur (Training Stress Balance)</span>
+              <p>Fraîcheur = CTL − ATL. Indique si tu es prêt à performer :</p>
+              <ul class="tl-zones">
+                <li><span style="color:#22C55E">+5 à +25</span> — Zone optimale : frais et entraîné → idéal pour une compétition</li>
+                <li><span style="color:#94A3B8">-10 à +5</span> — Équilibre : charge normale d'entretien</li>
+                <li><span style="color:#F59E0B">-10 à -30</span> — Surcharge : fatigue accumulée, risque de blessure</li>
+                <li><span style="color:#EF4444">&lt; -30</span> — Surentraînement : récupération obligatoire</li>
+              </ul>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title">⚙️ Calcul du TSS (Training Stress Score)</span>
+              <p>Chaque séance contribue un score : <code>TSS = durée(min) × intensité² × 100/60</code><br>
+              Intensité = FC moy / FC max estimée. Une heure à intensité modérée ≈ 50-60 pts TSS.</p>
+            </div>
+          </div>
         </div>
         <div style="height:180px;position:relative"><canvas id="trainingLoadChart"></canvas></div>
       </div>
