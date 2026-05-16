@@ -39,8 +39,8 @@
   <button class="nav-item" data-view="stress" onclick="showView('stress')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress &amp; FC
   </button>
-  <button class="nav-item" data-view="goals" onclick="showView('goals')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Objectifs
+  <button class="nav-item" data-view="paseforme" onclick="showView('paseforme')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>Pas &amp; forme
   </button>
   <button class="nav-item" data-view="nutrition" onclick="showView('nutrition')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5c0 3-2 5.5-5 8-3-2.5-5-5-5-8a5 5 0 0 1 5-5z"/><path d="M12 15v7M9 19h6"/></svg>Nutrition
@@ -405,47 +405,6 @@
           <div style="height:160px;position:relative"><canvas id="hrZonesChart"></canvas></div>
         </div>
       </div>
-      <!-- Charge d'entraînement ATL/CTL -->
-      <div class="panel-full" id="trainingLoadPanel" style="display:none">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/></svg>Charge d'entraînement — Forme / Fatigue</div>
-          <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="trainingLoadBadge">—</span>
-        </div>
-        <div class="training-load-legend">
-          <span class="tl-leg"><span class="tl-dot" style="background:#4A6CF7"></span>Forme CTL <span class="tl-sub">fitness à long terme (42j)</span></span>
-          <span class="tl-leg"><span class="tl-dot" style="background:#EF4444"></span>Fatigue ATL <span class="tl-sub">fatigue récente (7j)</span></span>
-          <span class="tl-leg"><span class="tl-dot" style="background:#22C55E"></span>Fraîcheur <span class="tl-sub">= CTL − ATL</span></span>
-          <button class="tl-info-btn" onclick="this.nextElementSibling.classList.toggle('open')">ℹ Comment lire ce graphique ?</button>
-        </div>
-        <div class="tl-info-box">
-          <div class="tl-info-grid">
-            <div class="tl-info-block">
-              <span class="tl-info-title" style="color:#4A6CF7">🔵 CTL — Fitness (Chronic Training Load)</span>
-              <p>Moyenne exponentielle de ta charge sur <strong>42 jours</strong>. Représente ton niveau de forme générale construit sur la durée. Monte lentement, descend lentement. Plus c'est élevé, plus tu es entraîné.</p>
-            </div>
-            <div class="tl-info-block">
-              <span class="tl-info-title" style="color:#EF4444">🔴 ATL — Fatigue (Acute Training Load)</span>
-              <p>Moyenne exponentielle sur <strong>7 jours</strong>. Reflète ta fatigue accumulée récemment. Après une semaine chargée, ATL monte vite. Après du repos, il redescend en quelques jours.</p>
-            </div>
-            <div class="tl-info-block">
-              <span class="tl-info-title" style="color:#22C55E">🟢 Fraîcheur (Training Stress Balance)</span>
-              <p>Fraîcheur = CTL − ATL. Indique si tu es prêt à performer :</p>
-              <ul class="tl-zones">
-                <li><span style="color:#22C55E">+5 à +25</span> — Zone optimale : frais et entraîné → idéal pour une compétition</li>
-                <li><span style="color:#94A3B8">-10 à +5</span> — Équilibre : charge normale d'entretien</li>
-                <li><span style="color:#F59E0B">-10 à -30</span> — Surcharge : fatigue accumulée, risque de blessure</li>
-                <li><span style="color:#EF4444">&lt; -30</span> — Surentraînement : récupération obligatoire</li>
-              </ul>
-            </div>
-            <div class="tl-info-block">
-              <span class="tl-info-title">⚙️ Calcul du TSS (Training Stress Score)</span>
-              <p>Chaque séance contribue un score : <code>TSS = durée(min) × intensité² × 100/60</code><br>
-              Intensité = FC moy / FC max estimée. Une heure à intensité modérée ≈ 50-60 pts TSS.</p>
-            </div>
-          </div>
-        </div>
-        <div style="height:180px;position:relative"><canvas id="trainingLoadChart"></canvas></div>
-      </div>
       <div class="panel-full">
         <div class="panel-header">
           <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Toutes les activités</div>
@@ -459,18 +418,6 @@
           <button class="filter-tab" onclick="setActFilter('other')">Autre</button>
         </div>
         <div class="act-list" id="actListFull"></div>
-      </div>
-      <div class="panel-full">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="20" height="20">
-              <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
-            </svg>
-            Pas quotidiens
-          </div>
-          <span class="badge" style="background:var(--green-l);color:var(--green)" id="stepsChartBadgeSport">—</span>
-        </div>
-        <div style="height:200px;position:relative"><canvas id="stepsChartSport"></canvas></div>
       </div>
     </div>
 
@@ -512,9 +459,62 @@
       </div>
     </div>
 
-    <!-- ══════════════ OBJECTIFS ══════════════ -->
-    <div class="view" id="view-goals">
-      <div class="goal-list" id="goalList"></div>
+    <!-- ══════════════ PAS & FORME ══════════════ -->
+    <div class="view" id="view-paseforme">
+      <!-- Pas quotidiens -->
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="20" height="20">
+              <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
+            </svg>
+            Pas quotidiens
+          </div>
+          <span class="badge" style="background:var(--green-l);color:var(--green)" id="stepsChartBadgeSport">—</span>
+        </div>
+        <div style="height:220px;position:relative"><canvas id="stepsChartSport"></canvas></div>
+      </div>
+      <!-- Charge d'entraînement ATL/CTL -->
+      <div class="panel-full" id="trainingLoadPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/></svg>Charge d'entraînement — Forme / Fatigue</div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="trainingLoadBadge">—</span>
+        </div>
+        <div class="training-load-legend">
+          <span class="tl-leg"><span class="tl-dot" style="background:#4A6CF7"></span>Forme CTL <span class="tl-sub">fitness à long terme (42j)</span></span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#EF4444"></span>Fatigue ATL <span class="tl-sub">fatigue récente (7j)</span></span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#22C55E"></span>Fraîcheur <span class="tl-sub">= CTL − ATL</span></span>
+          <button class="tl-info-btn" onclick="this.nextElementSibling.classList.toggle('open')">ℹ Comment lire ce graphique ?</button>
+        </div>
+        <div class="tl-info-box">
+          <div class="tl-info-grid">
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#4A6CF7">🔵 CTL — Fitness (Chronic Training Load)</span>
+              <p>Moyenne exponentielle de ta charge sur <strong>42 jours</strong>. Représente ton niveau de forme générale construit sur la durée. Monte lentement, descend lentement. Plus c'est élevé, plus tu es entraîné.</p>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#EF4444">🔴 ATL — Fatigue (Acute Training Load)</span>
+              <p>Moyenne exponentielle sur <strong>7 jours</strong>. Reflète ta fatigue accumulée récemment. Après une semaine chargée, ATL monte vite. Après du repos, il redescend en quelques jours.</p>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title" style="color:#22C55E">🟢 Fraîcheur (Training Stress Balance)</span>
+              <p>Fraîcheur = CTL − ATL. Indique si tu es prêt à performer :</p>
+              <ul class="tl-zones">
+                <li><span style="color:#22C55E">+5 à +25</span> — Zone optimale : frais et entraîné → idéal pour une compétition</li>
+                <li><span style="color:#94A3B8">-10 à +5</span> — Équilibre : charge normale d'entretien</li>
+                <li><span style="color:#F59E0B">-10 à -30</span> — Surcharge : fatigue accumulée, risque de blessure</li>
+                <li><span style="color:#EF4444">&lt; -30</span> — Surentraînement : récupération obligatoire</li>
+              </ul>
+            </div>
+            <div class="tl-info-block">
+              <span class="tl-info-title">⚙️ Calcul du TSS (Training Stress Score)</span>
+              <p>Chaque séance contribue un score : <code>TSS = durée(min) × intensité² × 100/60</code><br>
+              Intensité = FC moy / FC max estimée. Une heure à intensité modérée ≈ 50-60 pts TSS.</p>
+            </div>
+          </div>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="trainingLoadChart"></canvas></div>
+      </div>
     </div>
 
     <!-- ══════════════ NUTRITION ══════════════ -->
@@ -775,6 +775,10 @@
   <button class="bnav-item" data-view="sport" onclick="showView('sport')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
     <span>Sport</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="paseforme" onclick="showView('paseforme')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>
+    <span>Pas</span><div class="bnav-dot"></div>
   </button>
   <button class="bnav-item" data-view="stress" onclick="showView('stress')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
