@@ -16,6 +16,8 @@ function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return
 // FORMATTERS
 // ══════════════════════════════════════════
 const fmt=m=>m==null?'—':`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+// Convertit des heures décimales (ex: 1.75) en "1h45"
+const fmtH=h=>{const m=Math.round(h*60);return`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;};
 const fmtDate=d=>{const[,mo,dy]=d.split('-');return`${parseInt(dy)} ${['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][parseInt(mo)-1]}`};
 const stressInfo=v=>{
   if(v==null||v<0)return{label:'N/A',color:'#9CA3AF'};
@@ -396,7 +398,7 @@ function renderDashboard(){
   renderRunChart('runChart',A);
 
   const sl=Sp.slice(-15);
-  mkChart('sleepTrend',{type:'bar',data:{labels:sl.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:sl.map(s=>+(s.deep_min/60).toFixed(1)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:sl.map(s=>+(s.light_min/60).toFixed(1)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:sl.map(s=>+(s.rem_min/60).toFixed(1)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:sl.map(s=>+(s.awake_min/60).toFixed(1)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v}h`},grid:{color:'var(--surface2)'}}}}});
+  mkChart('sleepTrend',{type:'bar',data:{labels:sl.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:sl.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:sl.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:sl.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:sl.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=items.reduce((s,c)=>s+c.raw,0);return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
 }
 
 // ══════════════════════════════════════════
@@ -413,7 +415,7 @@ function renderSleep(){
   document.getElementById('sl_avgRem').textContent=fmt(avgRem);
   document.getElementById('sl_avgBed').textContent=beds.length?beds[Math.floor(beds.length/2)]:'—';
   document.getElementById('sleepTrendBadge2').textContent=Sp.length+' nuits';
-  mkChart('sleepTrendFull',{type:'bar',data:{labels:Sp.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:Sp.map(s=>+(s.deep_min/60).toFixed(1)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:Sp.map(s=>+(s.light_min/60).toFixed(1)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:Sp.map(s=>+(s.rem_min/60).toFixed(1)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:Sp.map(s=>+(s.awake_min/60).toFixed(1)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF',maxTicksLimit:12},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v}h`},grid:{color:'var(--surface2)'}}}}});
+  mkChart('sleepTrendFull',{type:'bar',data:{labels:Sp.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:Sp.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:Sp.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:Sp.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:Sp.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=items.reduce((s,c)=>s+c.raw,0);return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',maxTicksLimit:12},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
   const ls=S[S.length-1];
   document.getElementById('sleepLastBadge').textContent=ls.date?fmtDate(ls.date):'—';
   document.getElementById('sl2_inBed').textContent=fmt(ls.inBed_min);
