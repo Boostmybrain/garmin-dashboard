@@ -389,7 +389,10 @@
         <div class="panel" id="vo2maxPanel" style="display:none">
           <div class="panel-header">
             <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>VO2max</div>
-            <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="vo2maxBadge">—</span>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span class="badge" style="background:var(--surface2);color:var(--text2);font-size:11px" id="vo2maxPeriodBadge">—j</span>
+              <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="vo2maxBadge">—</span>
+            </div>
           </div>
           <div style="height:160px;position:relative"><canvas id="vo2maxChart"></canvas></div>
         </div>

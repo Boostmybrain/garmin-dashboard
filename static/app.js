@@ -569,7 +569,7 @@ function renderSport(){
   const filtered=sortDesc(actFilter==='all'?A:actFilter==='other'?A.filter(a=>!ACT_KNOWN.includes(a.type)):A.filter(a=>a.type===actFilter));
 
   renderRunChart('runChartFull',A);
-  renderVo2maxChart(A);
+  renderVo2maxChart(A,cutoffStr);
   renderHRZones(A,cutoffStr);
   renderTrainingLoad(A);
 
@@ -765,24 +765,32 @@ function renderWeeklyReport(W,S,A){
 // ══════════════════════════════════════════
 // SPORT — VO2MAX CHART
 // ══════════════════════════════════════════
-function renderVo2maxChart(A){
+function renderVo2maxChart(A,cutoffStr){
   const panel=document.getElementById('vo2maxPanel');if(!panel)return;
-  const pts=A.filter(a=>a.vo2max&&a.type==='running').sort((a,b)=>a.date.localeCompare(b.date));
-  if(!pts.length){panel.style.display='none';return;}
+  const all=A.filter(a=>a.vo2max&&a.type==='running').sort((a,b)=>a.date.localeCompare(b.date));
+  if(!all.length){panel.style.display='none';return;}
+  const pts=cutoffStr?all.filter(p=>p.date>=cutoffStr):all;
+  const display=pts.length?pts:all; // fallback si aucune donnée sur la période
   panel.style.display='block';
-  const last=pts[pts.length-1].vo2max;
-  document.getElementById('vo2maxBadge').textContent=last+' mL/kg/min';
+  const last=display[display.length-1].vo2max;
+  const first=display[0].vo2max;
+  const diff=+(last-first).toFixed(1);
+  const diffStr=(diff>0?'+':'')+diff;
+  document.getElementById('vo2maxBadge').textContent=`${last} mL/kg/min (${diffStr})`;
+  document.getElementById('vo2maxPeriodBadge').textContent=curPeriod+'j';
+  const vals=display.map(p=>p.vo2max);
+  const yMin=Math.max(0,Math.min(...vals)-2);
+  const yMax=Math.max(...vals)+2;
   mkChart('vo2maxChart',{
     type:'line',
-    data:{labels:pts.map(p=>fmtDate(p.date)),datasets:[{
-      label:'VO2max',data:pts.map(p=>p.vo2max),borderColor:'#0EA5E9',backgroundColor:'#0EA5E920',
+    data:{labels:display.map(p=>fmtDate(p.date)),datasets:[{
+      label:'VO2max',data:vals,borderColor:'#0EA5E9',backgroundColor:'#0EA5E920',
       borderWidth:2.5,pointRadius:3,fill:true,tension:.4
     }]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`VO2max: ${c.raw} mL/kg/min`}}},
       scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},
-          suggestedMin:35,suggestedMax:55}}}
+        y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}}
   });
 }
 
