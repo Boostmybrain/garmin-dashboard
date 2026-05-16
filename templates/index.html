@@ -322,11 +322,32 @@
 
     <!-- ══════════════ SPORT ══════════════ -->
     <div class="view" id="view-sport">
-      <div class="stat-boxes">
-        <div class="stat-box"><div class="stat-box-val" id="sp_total">—</div><div class="stat-box-lbl">Séances totales</div></div>
-        <div class="stat-box"><div class="stat-box-val" id="sp_km">—</div><div class="stat-box-lbl">km courus</div></div>
-        <div class="stat-box"><div class="stat-box-val" id="sp_time">—</div><div class="stat-box-lbl">Temps total</div></div>
-        <div class="stat-box"><div class="stat-box-val" id="sp_cal">—</div><div class="stat-box-lbl">kcal sport</div></div>
+      <div class="stat-boxes sp-stat-boxes">
+        <!-- Séances course + muscu -->
+        <div class="stat-box">
+          <div class="sp-sess-grid">
+            <div class="sp-sess-item">
+              <span class="sp-sess-val" id="sp_runs">—</span>
+              <span class="sp-sess-lbl">🏃 course</span>
+            </div>
+            <div class="sp-sess-sep"></div>
+            <div class="sp-sess-item">
+              <span class="sp-sess-val" id="sp_strength">—</span>
+              <span class="sp-sess-lbl">💪 muscu</span>
+            </div>
+          </div>
+          <div class="stat-box-lbl">Nombre de séances</div>
+        </div>
+        <!-- Km courus -->
+        <div class="stat-box">
+          <div class="stat-box-val" id="sp_km">—</div>
+          <div class="stat-box-lbl">Km courus (course)</div>
+        </div>
+        <!-- Temps entraînement -->
+        <div class="stat-box">
+          <div class="stat-box-val" id="sp_time">—</div>
+          <div class="stat-box-lbl">Temps d'entraînement (course + muscu)</div>
+        </div>
       </div>
       <div class="panel-full">
         <div class="panel-header">

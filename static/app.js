@@ -538,15 +538,27 @@ function renderSleep(){
 // ══════════════════════════════════════════
 function renderSport(){
   const A=appData.activities||[];
+
+  // Stats filtrées sur la période sélectionnée (curPeriod jours)
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-curPeriod);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const Ap=A.filter(a=>a.date>=cutoffStr);
+
+  const runs    =Ap.filter(a=>a.type==='running');
+  const strength=Ap.filter(a=>a.type==='strength_training');
+  const totalKm =runs.reduce((s,a)=>s+(a.distance_km||0),0);
+  const totalMin=[...runs,...strength].reduce((s,a)=>s+(a.duration_min||0),0);
+
+  document.getElementById('sp_runs').textContent=runs.length;
+  document.getElementById('sp_strength').textContent=strength.length;
+  document.getElementById('sp_km').textContent=totalKm.toFixed(1)+' km';
+  document.getElementById('sp_time').textContent=fmt(totalMin);
+
+  // Liste complète triée par date décroissante (pas filtrée par période)
   const sortDesc=(arr)=>[...arr].sort((a,b)=>b.date.localeCompare(a.date));
   const filtered=sortDesc(actFilter==='all'?A:actFilter==='other'?A.filter(a=>!ACT_KNOWN.includes(a.type)):A.filter(a=>a.type===actFilter));
-  const totalMin=A.reduce((s,a)=>s+(a.duration_min||0),0);
-  const totalKm=A.filter(a=>a.type==='running').reduce((s,a)=>s+(a.distance_km||0),0);
-  const totalCal=A.reduce((s,a)=>s+(a.calories||0),0);
-  document.getElementById('sp_total').textContent=A.length;
-  document.getElementById('sp_km').textContent=Math.round(totalKm)+' km';
-  document.getElementById('sp_time').textContent=fmt(totalMin);
-  document.getElementById('sp_cal').textContent=totalCal.toLocaleString('fr-FR');
+
   renderRunChart('runChartFull',A);
   document.querySelectorAll('#actFilterTabs .filter-tab').forEach(tab=>{const m=(tab.getAttribute('onclick')||'').match(/'([^']+)'/);tab.classList.toggle('active',m&&m[1]===actFilter);});
   document.getElementById('actListFull').innerHTML=filtered.length?filtered.map(actHTML).join(''):'<p style="color:var(--text2);font-size:13px;padding:16px 0">Aucune activité pour ce filtre.</p>';

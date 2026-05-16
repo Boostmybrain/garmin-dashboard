@@ -178,9 +178,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
 
 /* ── STAT BOXES ── */
 .stat-boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.sp-stat-boxes{grid-template-columns:repeat(3,1fr)}
 .stat-box{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);padding:16px;text-align:center;box-shadow:var(--sh)}
 .stat-box-val{font-size:22px;font-weight:700;margin-bottom:4px}
 .stat-box-lbl{font-size:11px;color:var(--text2)}
+
+/* Stat box séances (course + muscu) */
+.sp-sess-grid{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:6px}
+.sp-sess-item{display:flex;flex-direction:column;align-items:center;padding:0 14px}
+.sp-sess-val{font-size:28px;font-weight:800;line-height:1.1}
+.sp-sess-lbl{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap}
+.sp-sess-sep{width:1px;height:40px;background:var(--border)}
+
+@media(max-width:768px){.sp-stat-boxes{grid-template-columns:1fr}}
+@media(max-width:600px){.sp-stat-boxes{grid-template-columns:1fr}}
 
 /* ── GOALS ── */
 .goal-list{display:flex;flex-direction:column;gap:14px}
