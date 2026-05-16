@@ -356,6 +356,8 @@ function renderDashboard(){
   if(C.firstName){document.getElementById('userName').textContent=C.firstName;document.getElementById('avatarInitial').textContent=C.firstName[0].toUpperCase();}
 
   renderScore(W,S);
+  renderAlerts(W,S,A);
+  renderWeeklyReport(W,S,A);
   renderRecords(W,A,S);
   renderHeatmap(W);
   renderComparison(W,S);
@@ -527,6 +529,8 @@ function renderSleep(){
   document.getElementById('sleepTrendBadge2').textContent=Sp.length+' nuits';
   mkChart('sleepTrendFull',{type:'bar',data:{labels:Sp.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:Sp.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:Sp.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:Sp.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:Sp.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=items.reduce((s,c)=>s+c.raw,0);return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',maxTicksLimit:12},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
   renderBedtimeChart(S);
+  renderSleepRegularity(Sp);
+  renderSleepCorrelation(S,appData.wellness||[]);
 
   const ls=S[S.length-1];
   document.getElementById('sleepLastBadge').textContent=ls.date?fmtDate(ls.date):'—';
@@ -565,6 +569,9 @@ function renderSport(){
   const filtered=sortDesc(actFilter==='all'?A:actFilter==='other'?A.filter(a=>!ACT_KNOWN.includes(a.type)):A.filter(a=>a.type===actFilter));
 
   renderRunChart('runChartFull',A);
+  renderVo2maxChart(A);
+  renderHRZones(A,cutoffStr);
+  renderTrainingLoad(A);
 
   // Graphique pas quotidiens (depuis wellness, filtrés par période)
   const W=appData.wellness||[];
@@ -627,6 +634,9 @@ function renderStressView(){
   mkChart('stressChartFull',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C730',borderWidth:2,pointRadius:3,fill:true,tension:.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Stress: ${c.raw} — ${stressInfo(c.raw).label}`}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,min:0,max:100,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
   mkChart('hrRestChart',{type:'line',data:{labels:hr.map(d=>fmtDate(d.date)),datasets:[{label:'FC repos',data:hr.map(d=>rhr(d)),borderColor:'#0EA5E9',backgroundColor:'#E0F5FF40',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},{label:'FC max',data:hr.map(d=>d.maxHR||null),borderColor:'#EF444870',backgroundColor:'transparent',borderWidth:1.5,pointRadius:2,fill:false,tension:.4,borderDash:[5,4]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} bpm`},grid:{color:'var(--surface2)'}}}}});
 
+  renderHRVChart(Wp);
+  renderWeightChart();
+
   // Body Battery
   const bb=Wp.filter(d=>d.bodyBattery!=null);
   const bbPanel=document.getElementById('bbPanel');
@@ -671,6 +681,344 @@ function renderGoals(){
     const ok=def.lower?val<=target:val>=target;
     gl.innerHTML+=`<div class="goal-item"><div class="goal-header"><div><div class="goal-name">${def.label}</div><div class="goal-val">Moyenne : <b>${Number.isInteger(val)?val.toLocaleString('fr-FR'):val.toFixed(1)} ${def.unit}</b></div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">Objectif</div><div style="display:flex;align-items:center;gap:4px"><input class="goal-input" type="number" value="${target}" min="0" onchange="saveGoal('${key}',parseFloat(this.value)||0);renderGoals()"> ${def.unit}</div></div><span style="font-size:28px;font-weight:800;color:${ok?def.color:'#CBD5E1'}">${ok?'✓':'○'}</span></div></div><div class="goal-bar-bg"><div class="goal-bar" style="width:${Math.max(2,barPct)}%;background:${def.color}"></div></div><div class="goal-rate">Atteint ${rate}% des jours · ${hits}/${src.length} jours</div></div>`;
   });
+}
+
+// ══════════════════════════════════════════
+// ALERTES DASHBOARD
+// ══════════════════════════════════════════
+function renderAlerts(W,S,A){
+  const panel=document.getElementById('alertsPanel');if(!panel)return;
+  const alerts=[];
+  const last=W.length?W[W.length-1]:{};
+  const ls=S.length?S[S.length-1]:{};
+  // Sommeil court
+  if(ls.sleepTotal_min>0&&ls.sleepTotal_min<360) alerts.push({type:'warn',msg:`Sommeil court hier : ${fmt(ls.sleepTotal_min)}`});
+  // Stress élevé
+  if(last.stress>=0&&last.stress>70) alerts.push({type:'danger',msg:`Stress élevé : ${last.stress}/100`});
+  // Peu de pas
+  if(last.steps>0&&last.steps<3000) alerts.push({type:'info',msg:`Peu de pas : ${last.steps.toLocaleString('fr-FR')}`});
+  // FC repos anormale
+  if(rhr(last)&&W.length>=7){
+    const avgRHR=Math.round(W.slice(-14).filter(d=>rhr(d)).reduce((s,d)=>s+rhr(d),0)/W.slice(-14).filter(d=>rhr(d)).length);
+    if(rhr(last)>avgRHR+8) alerts.push({type:'warn',msg:`FC repos élevée : ${rhr(last)} bpm (moy. ${avgRHR})`});
+  }
+  if(!alerts.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  const COL={warn:'#F59E0B',danger:'#EF4444',info:'#4A6CF7'};
+  const BG ={warn:'#FEF3C7',danger:'#FEE2E2',info:'#EEF1FF'};
+  panel.innerHTML=`<div class="alerts-strip">${alerts.map(a=>`<span class="alert-pill" style="background:${BG[a.type]};color:${COL[a.type]}">${a.msg}</span>`).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════
+// RAPPORT HEBDOMADAIRE
+// ══════════════════════════════════════════
+function renderWeeklyReport(W,S,A){
+  const panel=document.getElementById('weeklyPanel');if(!panel)return;
+  // Lundi de la semaine actuelle
+  const today=new Date();
+  const dow=today.getDay();
+  const thisMonday=new Date(today);
+  thisMonday.setDate(today.getDate()-(dow===0?6:dow-1));
+  thisMonday.setHours(0,0,0,0);
+  const lastMonday=new Date(thisMonday);lastMonday.setDate(thisMonday.getDate()-7);
+
+  const inRange=(arr,from,to)=>arr.filter(d=>d.date>=from.toISOString().slice(0,10)&&d.date<to.toISOString().slice(0,10));
+  const avg=(arr,k)=>{const f=arr.filter(d=>d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0;};
+
+  const thisW=inRange(W,thisMonday,new Date(thisMonday.getTime()+7*86400000));
+  const prevW=inRange(W,lastMonday,thisMonday);
+  const thisSl=inRange(S,thisMonday,new Date(thisMonday.getTime()+7*86400000));
+  const prevSl=inRange(S,lastMonday,thisMonday);
+  const thisA=inRange(A,thisMonday,new Date(thisMonday.getTime()+7*86400000));
+  const prevA=inRange(A,lastMonday,thisMonday);
+  const thisRuns=thisA.filter(a=>a.type==='running');
+  const prevRuns=prevA.filter(a=>a.type==='running');
+
+  const metrics=[
+    {lbl:'Pas / jour',curr:avg(thisW,'steps'),prev:avg(prevW,'steps'),fmt:v=>Math.round(v).toLocaleString('fr-FR'),lower:false},
+    {lbl:'Sommeil',curr:avg(thisSl,'sleepTotal_min'),prev:avg(prevSl,'sleepTotal_min'),fmt:v=>fmt(Math.round(v)),lower:false},
+    {lbl:'Sorties course',curr:thisRuns.length,prev:prevRuns.length,fmt:v=>v+' séances',lower:false},
+    {lbl:'Km courus',curr:thisRuns.reduce((s,a)=>s+(a.distance_km||0),0),prev:prevRuns.reduce((s,a)=>s+(a.distance_km||0),0),fmt:v=>v.toFixed(1)+' km',lower:false},
+    {lbl:'Stress moy.',curr:avg(thisW.filter(d=>d.stress>=0),'stress'),prev:avg(prevW.filter(d=>d.stress>=0),'stress'),fmt:v=>Math.round(v)||'—',lower:true},
+    {lbl:'FC repos moy.',curr:avg(thisW.filter(d=>rhr(d)),d=>rhr(d)),prev:avg(prevW.filter(d=>rhr(d)),d=>rhr(d)),fmt:v=>Math.round(v)?Math.round(v)+' bpm':'—',lower:true},
+  ];
+  // fix: avg for rhr needs special handling
+  const avgRHR=(arr)=>{const f=arr.filter(d=>rhr(d));return f.length?f.reduce((s,d)=>s+rhr(d),0)/f.length:0;};
+  metrics[5].curr=avgRHR(thisW);metrics[5].prev=avgRHR(prevW);
+
+  if(!thisW.length&&!thisA.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  const grid=document.getElementById('weeklyGrid');if(!grid)return;
+  grid.innerHTML=metrics.map(m=>{
+    const delta=m.prev>0?(m.curr-m.prev)/m.prev*100:0;
+    const better=m.lower?delta<=0:delta>=0;
+    const col=Math.abs(delta)<1?'#94A3B8':better?'#22C55E':'#EF4444';
+    const arrow=delta>1?'↑':delta<-1?'↓':'→';
+    return`<div class="weekly-card">
+      <div class="wk-lbl">${m.lbl}</div>
+      <div class="wk-val">${m.fmt(m.curr)}</div>
+      <div class="wk-prev">Préc. : ${m.fmt(m.prev)}</div>
+      <div class="wk-delta" style="color:${col}">${arrow} ${Math.abs(Math.round(delta))}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// SPORT — VO2MAX CHART
+// ══════════════════════════════════════════
+function renderVo2maxChart(A){
+  const panel=document.getElementById('vo2maxPanel');if(!panel)return;
+  const pts=A.filter(a=>a.vo2max&&a.type==='running').sort((a,b)=>a.date.localeCompare(b.date));
+  if(!pts.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  const last=pts[pts.length-1].vo2max;
+  document.getElementById('vo2maxBadge').textContent=last+' mL/kg/min';
+  mkChart('vo2maxChart',{
+    type:'line',
+    data:{labels:pts.map(p=>fmtDate(p.date)),datasets:[{
+      label:'VO2max',data:pts.map(p=>p.vo2max),borderColor:'#0EA5E9',backgroundColor:'#0EA5E920',
+      borderWidth:2.5,pointRadius:3,fill:true,tension:.4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`VO2max: ${c.raw} mL/kg/min`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},
+          suggestedMin:35,suggestedMax:55}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// SPORT — ZONES FC (estimation from avgHR)
+// ══════════════════════════════════════════
+function renderHRZones(A,cutoffStr){
+  const panel=document.getElementById('hrZonesPanel');if(!panel)return;
+  const runs=A.filter(a=>a.type==='running'&&a.avgHR&&a.date>=cutoffStr);
+  if(!runs.length){panel.style.display='none';return;}
+  // Référence maxHR : max des activités ou 185 par défaut
+  const refMax=Math.max(...A.filter(a=>a.maxHR).map(a=>a.maxHR),185);
+  const ZONES=['Z1 <60%','Z2 60–70%','Z3 70–80%','Z4 80–90%','Z5 >90%'];
+  const ZCOLS=['#22C55E','#4A6CF7','#F59E0B','#FF6B35','#EF4444'];
+  const counts=[0,0,0,0,0];
+  runs.forEach(a=>{
+    const pct=a.avgHR/refMax*100;
+    if(pct<60)counts[0]++;
+    else if(pct<70)counts[1]++;
+    else if(pct<80)counts[2]++;
+    else if(pct<90)counts[3]++;
+    else counts[4]++;
+  });
+  panel.style.display='block';
+  document.getElementById('hrZonesBadge').textContent=runs.length+' courses';
+  mkChart('hrZonesChart',{
+    type:'bar',
+    data:{labels:ZONES,datasets:[{data:counts,backgroundColor:ZCOLS.map(c=>c+'CC'),borderColor:ZCOLS,borderWidth:1.5,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} course${c.raw>1?'s':''}`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}},
+        y:{display:true,ticks:{font:{size:10},color:'#9CA3AF'},grid:{display:false}}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// SPORT — CHARGE D'ENTRAÎNEMENT (ATL/CTL)
+// ══════════════════════════════════════════
+function renderTrainingLoad(A){
+  const panel=document.getElementById('trainingLoadPanel');if(!panel)return;
+  if(!A.length){panel.style.display='none';return;}
+  // TSS par jour : sum(duration_min * (avgHR/refMax)^2 * 100/60)
+  const refMax=Math.max(...A.filter(a=>a.maxHR).map(a=>a.maxHR),185);
+  const tssMap={};
+  A.forEach(a=>{
+    const intensity=a.avgHR?Math.min(1,a.avgHR/refMax):0.65;
+    const tss=a.duration_min*intensity*intensity*100/60;
+    tssMap[a.date]=(tssMap[a.date]||0)+tss;
+  });
+  // Generate date range: last 90 days
+  const dates=[];
+  for(let i=89;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d.toISOString().slice(0,10));}
+  // Exponential moving averages
+  const k_ctl=1-Math.exp(-1/42),k_atl=1-Math.exp(-1/7);
+  let ctl=0,atl=0;
+  const ctlArr=[],atlArr=[],formArr=[];
+  dates.forEach(d=>{
+    const tss=tssMap[d]||0;
+    ctl=ctl+k_ctl*(tss-ctl);
+    atl=atl+k_atl*(tss-atl);
+    ctlArr.push(+ctl.toFixed(1));
+    atlArr.push(+atl.toFixed(1));
+    formArr.push(+(ctl-atl).toFixed(1));
+  });
+  const lbls=dates.map(fmtDate);
+  panel.style.display='block';
+  document.getElementById('trainingLoadBadge').textContent=`Forme : ${formArr[formArr.length-1]>0?'+':''}${formArr[formArr.length-1]}`;
+  mkChart('trainingLoadChart',{
+    type:'line',
+    data:{labels:lbls,datasets:[
+      {label:'Forme CTL',data:ctlArr,borderColor:'#4A6CF7',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4},
+      {label:'Fatigue ATL',data:atlArr,borderColor:'#EF4444',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.4},
+      {label:'Fraîcheur',data:formArr,borderColor:'#22C55E',backgroundColor:'#22C55E18',borderWidth:1.5,pointRadius:0,tension:.4,fill:true},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:10,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// SOMMEIL — RÉGULARITÉ + RÉVEIL MOYEN
+// ══════════════════════════════════════════
+function renderSleepRegularity(Sp){
+  const wakes=Sp.map(s=>s.wakeTime).filter(Boolean).sort();
+  const avgWake=wakes.length?wakes[Math.floor(wakes.length/2)]:'—';
+  document.getElementById('sl_avgWake').textContent=avgWake;
+
+  // Std dev des heures de coucher (en décimal)
+  const beds=Sp.map(s=>{
+    if(!s.bedtime)return null;
+    const [h,m]=s.bedtime.split(':').map(Number);
+    let dec=h+m/60;
+    if(dec<14)dec+=24;
+    return dec;
+  }).filter(v=>v!==null);
+  if(!beds.length){document.getElementById('sl_regularity').textContent='—';return;}
+  const meanB=beds.reduce((s,v)=>s+v,0)/beds.length;
+  const stddev=Math.sqrt(beds.reduce((s,v)=>s+(v-meanB)**2,0)/beds.length);
+  const score=Math.max(0,Math.min(10,10-stddev*2)).toFixed(1);
+  document.getElementById('sl_regularity').textContent=score;
+}
+
+// ══════════════════════════════════════════
+// SOMMEIL — CORRÉLATION SOMMEIL → FORME
+// ══════════════════════════════════════════
+function renderSleepCorrelation(S,W){
+  const panel=document.getElementById('sleepCorrPanel');if(!panel)return;
+  // Map wellness by date
+  const wMap={};W.forEach(d=>wMap[d.date]=d);
+  // For each sleep night, get next-day BB or stress
+  const pts=[];
+  S.forEach(s=>{
+    const nextDate=new Date(s.date);nextDate.setDate(nextDate.getDate()+1);
+    const nd=nextDate.toISOString().slice(0,10);
+    const w=wMap[nd];
+    if(!w)return;
+    const forma=w.bodyBattery||(-w.stress);
+    if(forma==null)return;
+    pts.push({date:s.date,sleep:+(s.sleepTotal_min/60).toFixed(2),bb:w.bodyBattery,stress:w.stress>=0?w.stress:null});
+  });
+  if(pts.length<4){panel.style.display='none';return;}
+  panel.style.display='block';
+  const last30=pts.slice(-30);
+  mkChart('sleepCorrChart',{
+    type:'line',
+    data:{labels:last30.map(p=>fmtDate(p.date)),datasets:[
+      {label:'Sommeil (h)',data:last30.map(p=>p.sleep),borderColor:'#8B5CF6',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.4,yAxisID:'y'},
+      {label:'Body Battery J+1',data:last30.map(p=>p.bb),borderColor:'#22C55E',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.4,yAxisID:'y2'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>c.datasetIndex===0?`Sommeil: ${fmtH(c.raw)}`:c.raw!=null?`Body Battery J+1: ${c.raw}`:null}}},
+      scales:{
+        x:{display:true,ticks:{font:{size:9},maxTicksLimit:10,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,position:'left',ticks:{font:{size:9},color:'#8B5CF6',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'},title:{display:true,text:'Sommeil',color:'#8B5CF6',font:{size:9}}},
+        y2:{display:true,position:'right',min:0,max:100,ticks:{font:{size:9},color:'#22C55E'},grid:{display:false},title:{display:true,text:'Body Battery',color:'#22C55E',font:{size:9}}},
+      }}
+  });
+}
+
+// ══════════════════════════════════════════
+// STRESS — HRV CHART
+// ══════════════════════════════════════════
+function renderHRVChart(Wp){
+  const panel=document.getElementById('hrvPanel');if(!panel)return;
+  const hrv=Wp.filter(d=>d.hrv!=null);
+  if(!hrv.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('hrvBadge').textContent=curPeriod+'j';
+  mkChart('hrvChart',{
+    type:'line',
+    data:{labels:hrv.map(d=>fmtDate(d.date)),datasets:[{
+      label:'HRV',data:hrv.map(d=>d.hrv),borderColor:'#8B5CF6',backgroundColor:'#8B5CF620',
+      borderWidth:2.5,pointRadius:3,fill:true,tension:.4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`HRV: ${c.raw} ms`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// STRESS — POIDS CHART
+// ══════════════════════════════════════════
+function renderWeightChart(){
+  const panel=document.getElementById('weightPanel');if(!panel)return;
+  const weight=(appData.weight||[]).slice(-curPeriod*2);
+  const filtered=weight.filter(w=>w.weight_kg);
+  if(!filtered.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('weightBadge').textContent=filtered[filtered.length-1].weight_kg+' kg';
+  mkChart('weightChart',{
+    type:'line',
+    data:{labels:filtered.map(d=>fmtDate(d.date)),datasets:[{
+      label:'Poids',data:filtered.map(d=>d.weight_kg),borderColor:'#FF6B35',backgroundColor:'#FF6B3520',
+      borderWidth:2.5,pointRadius:3,fill:true,tension:.4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} kg`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} kg`},grid:{color:'var(--surface2)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// NUTRITION — BILAN CALORIES
+// ══════════════════════════════════════════
+function renderCalorieBalance(meals,W){
+  const card=document.getElementById('calBilanCard');if(!card)return;
+  const burned=(W&&W.length?W[W.length-1].calories:0)||0;
+  if(!burned){card.style.display='none';return;}
+  const consumed=meals.reduce((s,m)=>s+(m.calories||0),0);
+  const balance=consumed-burned;
+  const col=balance>300?'#EF4444':balance<-500?'#4A6CF7':'#22C55E';
+  const lbl=balance>300?'Excédent':balance<-500?'Déficit':'Équilibre';
+  card.style.display='block';
+  card.innerHTML=`<div class="cal-bilan-card">
+    <div class="cbc-item"><span class="cbc-val">${burned.toLocaleString('fr-FR')}</span><span class="cbc-lbl">🔥 Dépensées</span></div>
+    <div class="cbc-sep">−</div>
+    <div class="cbc-item"><span class="cbc-val">${consumed.toLocaleString('fr-FR')}</span><span class="cbc-lbl">🍽 Consommées</span></div>
+    <div class="cbc-sep">=</div>
+    <div class="cbc-item"><span class="cbc-val" style="color:${col}">${balance>0?'+':''}${balance.toLocaleString('fr-FR')}</span><span class="cbc-lbl" style="color:${col}">${lbl}</span></div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+// NUTRITION — HISTORIQUE MACROS
+// ══════════════════════════════════════════
+async function renderMacroHistory(){
+  const panel=document.getElementById('macroHistPanel');if(!panel)return;
+  try{
+    const r=await fetch('/api/meals-history?days=7');
+    const j=await r.json();
+    if(!j.ok||!j.history.length){panel.style.display='none';return;}
+    panel.style.display='block';
+    const h=j.history;
+    mkChart('macroHistChart',{
+      type:'bar',
+      data:{
+        labels:h.map(d=>fmtDate(d.meal_date)),
+        datasets:[
+          {label:'Protéines (g)',data:h.map(d=>d.prot||0),backgroundColor:'#4A6CF7CC',stack:'s'},
+          {label:'Glucides (g)',data:h.map(d=>d.gluc||0),backgroundColor:'#22C55ECC',stack:'s'},
+          {label:'Lipides (g)',data:h.map(d=>d.lip||0),backgroundColor:'#F59E0BCC',stack:'s'},
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},
+        scales:{x:{display:true,ticks:{font:{size:10},color:'#9CA3AF'},grid:{display:false}},
+          y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}
+    });
+  }catch{panel.style.display='none';}
 }
 
 // ══════════════════════════════════════════
@@ -1074,8 +1422,10 @@ async function loadNutritionHistory(){
     const r=await fetch(`/api/meals?date=${today}`);
     const j=await r.json();
     nutriMeals=j.ok?j.meals:[];
+    renderCalorieBalance(nutriMeals,appData?appData.wellness:[]);
     renderDayTotals(nutriMeals);
     renderMealHistory(nutriMeals);
+    await renderMacroHistory();
   }catch{nutriMeals=[];renderMealHistory([]);}
 }
 

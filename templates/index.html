@@ -167,8 +167,23 @@
         </div>
       </div>
 
+      <!-- Alertes -->
+      <div id="alertsPanel" style="display:none;margin-bottom:16px"></div>
+
       <!-- Records -->
       <div class="records-grid" id="recordsGrid" style="display:none"></div>
+
+      <!-- Rapport hebdomadaire -->
+      <div class="panel-full" id="weeklyPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Rapport hebdomadaire
+          </div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)">Cette sem. vs préc.</span>
+        </div>
+        <div class="weekly-grid" id="weeklyGrid"></div>
+      </div>
 
       <!-- Heatmap -->
       <div class="panel-full" id="heatmapPanel" style="display:none">
@@ -264,11 +279,13 @@
 
     <!-- ══════════════ SOMMEIL ══════════════ -->
     <div class="view" id="view-sleep">
-      <div class="stat-boxes">
+      <div class="stat-boxes" style="grid-template-columns:repeat(3,1fr)">
         <div class="stat-box"><div class="stat-box-val" id="sl_avgTotal">—</div><div class="stat-box-lbl">Moy. total</div></div>
         <div class="stat-box"><div class="stat-box-val" id="sl_avgDeep">—</div><div class="stat-box-lbl">Moy. profond</div></div>
         <div class="stat-box"><div class="stat-box-val" id="sl_avgRem">—</div><div class="stat-box-lbl">Moy. REM</div></div>
         <div class="stat-box"><div class="stat-box-val" id="sl_avgBed">—</div><div class="stat-box-lbl">Coucher moyen</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sl_avgWake">—</div><div class="stat-box-lbl">Réveil moyen</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="sl_regularity">—</div><div class="stat-box-lbl">Régularité /10</div></div>
       </div>
       <div class="panel-full">
         <div class="panel-header">
@@ -296,6 +313,18 @@
         </div>
         <div style="height:260px;position:relative"><canvas id="bedtimeChart"></canvas></div>
       </div>
+      <!-- Corrélation sommeil → forme -->
+      <div class="panel-full" id="sleepCorrPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Corrélation sommeil → forme du lendemain
+          </div>
+          <span class="badge" style="background:var(--purple-l);color:var(--purple)">Body Battery</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="sleepCorrChart"></canvas></div>
+      </div>
+
       <div class="grid2">
         <div class="panel">
           <div class="panel-header">
@@ -355,6 +384,37 @@
         </div>
         <div style="height:180px;position:relative"><canvas id="runChartFull"></canvas></div>
       </div>
+      <div class="grid2">
+        <!-- VO2max -->
+        <div class="panel" id="vo2maxPanel" style="display:none">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>VO2max</div>
+            <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="vo2maxBadge">—</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="vo2maxChart"></canvas></div>
+        </div>
+        <!-- Zones FC -->
+        <div class="panel" id="hrZonesPanel" style="display:none">
+          <div class="panel-header">
+            <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" width="20" height="20"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Zones FC (courses)</div>
+            <span class="badge" style="background:#FEE2E2;color:var(--red)" id="hrZonesBadge">—</span>
+          </div>
+          <div style="height:160px;position:relative"><canvas id="hrZonesChart"></canvas></div>
+        </div>
+      </div>
+      <!-- Charge d'entraînement ATL/CTL -->
+      <div class="panel-full" id="trainingLoadPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/></svg>Charge d'entraînement — Forme / Fatigue</div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)" id="trainingLoadBadge">—</span>
+        </div>
+        <div class="training-load-legend">
+          <span class="tl-leg"><span class="tl-dot" style="background:#4A6CF7"></span>Forme CTL</span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#EF4444"></span>Fatigue ATL</span>
+          <span class="tl-leg"><span class="tl-dot" style="background:#22C55E"></span>Fraîcheur</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="trainingLoadChart"></canvas></div>
+      </div>
       <div class="panel-full">
         <div class="panel-header">
           <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Toutes les activités</div>
@@ -412,6 +472,20 @@
         </div>
         <div style="height:180px;position:relative"><canvas id="bbChart"></canvas></div>
       </div>
+      <div class="panel-full" id="hrvPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>HRV — Variabilité cardiaque</div>
+          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="hrvBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="hrvChart"></canvas></div>
+      </div>
+      <div class="panel-full" id="weightPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" width="20" height="20"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>Poids</div>
+          <span class="badge" style="background:var(--orange-l);color:var(--orange)" id="weightBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="weightChart"></canvas></div>
+      </div>
     </div>
 
     <!-- ══════════════ OBJECTIFS ══════════════ -->
@@ -440,6 +514,9 @@
           <span class="dtb-sub">Recovery / EF facile / repos actif</span>
         </button>
       </div>
+
+      <!-- Bilan calories du jour -->
+      <div id="calBilanCard" style="display:none;margin-bottom:16px"></div>
 
       <!-- Objectifs du jour (ligne) -->
       <div class="nutri-objectives-bar" id="nutriObjectivesBar"></div>
@@ -567,6 +644,18 @@
             <p>Prenez une photo pour commencer</p>
           </div>
         </div>
+      </div>
+
+      <!-- Historique macros 7j -->
+      <div class="panel-full" id="macroHistPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><rect x="2" y="14" width="4" height="8" rx="1"/><rect x="9" y="9" width="4" height="13" rx="1"/><rect x="16" y="4" width="4" height="18" rx="1"/></svg>
+            Historique macros (7 jours)
+          </div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)">7j</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="macroHistChart"></canvas></div>
       </div>
 
     </div><!-- /view-nutrition -->

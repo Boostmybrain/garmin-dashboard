@@ -207,8 +207,40 @@ def parse_wellness(files: dict) -> list:
             "activeSeconds":       x.get("activeSeconds", 0),
             "highlyActiveSeconds": x.get("highlyActiveSeconds", 0),
             "bodyBattery":         _body_battery(x),
+            "hrv":                 x.get("hrv5MinHigh") or x.get("lastNightHrvScore") or x.get("hrvScore"),
         })
     return out[-365:]  # 1 an
+
+def parse_weight(files: dict) -> list:
+    """Parse weight / body composition data from Garmin ZIP export."""
+    rows = []
+    for name, raw in files.items():
+        if any(k in name.lower() for k in ("weight", "body_comp", "bodycomposition")):
+            try:
+                data = json.loads(raw)
+                if isinstance(data, list):
+                    rows.extend(data)
+            except Exception:
+                pass
+    rows.sort(key=lambda x: x.get("calendarDate") or x.get("date") or "")
+    out, seen = [], set()
+    for r in rows:
+        date = r.get("calendarDate") or r.get("date", "")
+        if not date or date in seen:
+            continue
+        w = r.get("weight")
+        if w is None:
+            continue
+        # Garmin stores weight in grams (e.g. 80500 = 80.5 kg)
+        if w > 100000:      w_kg = round(w / 1e6, 1)   # milligrams
+        elif w > 1000:      w_kg = round(w / 1000, 1)  # grams
+        else:               w_kg = round(w, 1)          # already kg
+        if not (20 < w_kg < 300):
+            continue
+        seen.add(date)
+        bmi = r.get("bmi")
+        out.append({"date": date, "weight_kg": w_kg, "bmi": round(bmi, 1) if bmi else None})
+    return out[-365:]
 
 def parse_activities(files: dict) -> list:
     acts = []
@@ -309,6 +341,7 @@ def build_garmin_data(files: dict) -> dict:
         "activities": parse_activities(files),
         "sleep":      parse_sleep(files),
         "customer":   parse_customer(files),
+        "weight":     parse_weight(files),
     }
 
 # ──────────────────────────────────────────────
@@ -471,6 +504,7 @@ def _fetch_garmin_api(client, days=30):
                     "activeSeconds":       s.get("activeSeconds") or 0,
                     "highlyActiveSeconds": s.get("highlyActiveSeconds") or 0,
                     "bodyBattery":         int(bb) if bb else None,
+                    "hrv":                 s.get("hrv5MinHigh") or s.get("lastNightHrvScore") or s.get("hrvScore"),
                 })
         except Exception:
             pass
@@ -557,6 +591,33 @@ def _fetch_garmin_api(client, days=30):
         pass
 
     return wellness_out, sleep_out, activities_out
+
+
+# ──────────────────────────────────────────────
+# AUTO-SYNC BACKGROUND THREAD
+# ──────────────────────────────────────────────
+def _auto_sync_loop():
+    import time
+    time.sleep(60)  # attendre démarrage app
+    while True:
+        try:
+            if _GARMIN_AVAILABLE and GARMIN_TOKENS.exists():
+                gc = _GarminConnect("")
+                gc.garth.loads(GARMIN_TOKENS.read_text())
+                w, s, a = _fetch_garmin_api(gc, days=30)
+                data = load_from_db() or {}
+                if w:  data["wellness"]   = w
+                if s:  data["sleep"]      = s
+                if a:  data["activities"] = a
+                data.setdefault("customer", {})
+                data.setdefault("weight", [])
+                save_to_db(data)
+        except Exception:
+            pass
+        time.sleep(6 * 3600)  # re-sync toutes les 6h
+
+_sync_thread = threading.Thread(target=_auto_sync_loop, daemon=True)
+_sync_thread.start()
 
 
 # ──────────────────────────────────────────────
@@ -865,6 +926,23 @@ def api_meals():
     return jsonify({"ok": True, "meals": get_meals(date)})
 
 
+@app.route("/api/meals-history")
+def api_meals_history():
+    """Aggregated macro totals per day for the past N days."""
+    days = min(int(request.args.get("days", 7)), 90)
+    from datetime import timedelta, date as _date
+    start = (_date.today() - timedelta(days=days - 1)).isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        c.row_factory = sqlite3.Row
+        rows = c.execute(
+            "SELECT meal_date, SUM(calories) cal, SUM(proteines) prot, "
+            "SUM(glucides) gluc, SUM(lipides) lip "
+            "FROM meals WHERE meal_date >= ? GROUP BY meal_date ORDER BY meal_date",
+            [start]
+        ).fetchall()
+    return jsonify({"ok": True, "history": [dict(r) for r in rows]})
+
+
 @app.route("/api/meals/<int:meal_id>", methods=["DELETE"])
 def api_delete_meal(meal_id):
     with sqlite3.connect(DATABASE) as c:
@@ -909,6 +987,7 @@ def _run_sync_background(days):
             "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
             "activities": _merge(existing.get("activities", []), new_activities)[:300],
             "customer":   existing.get("customer", {}),
+            "weight":     existing.get("weight", []),
         }
         save_to_db(merged)
         _sync_state = {

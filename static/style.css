@@ -699,3 +699,44 @@ button,-webkit-tap-highlight-color:transparent;
 @media(max-width:480px){
   .macro-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ══════════════════════════════════════
+   ALERTES
+══════════════════════════════════════ */
+.alerts-strip{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0}
+.alert-pill{font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;white-space:nowrap}
+@media(max-width:768px){.alert-pill{font-size:11px;padding:5px 10px}}
+
+/* ══════════════════════════════════════
+   RAPPORT HEBDOMADAIRE
+══════════════════════════════════════ */
+.weekly-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.weekly-card{background:var(--surface2);border-radius:12px;padding:12px;text-align:center}
+.wk-lbl{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.wk-val{font-size:16px;font-weight:800;line-height:1.2;margin-bottom:2px}
+.wk-prev{font-size:10px;color:var(--text2);margin-bottom:4px}
+.wk-delta{font-size:12px;font-weight:700}
+@media(max-width:1100px){.weekly-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.weekly-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ══════════════════════════════════════
+   TRAINING LOAD LEGEND
+══════════════════════════════════════ */
+.training-load-legend{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.tl-leg{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text2)}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* ══════════════════════════════════════
+   BILAN CALORIES (Nutrition)
+══════════════════════════════════════ */
+.cal-bilan-card{
+  display:flex;align-items:center;justify-content:center;
+  gap:0;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px 20px;flex-wrap:wrap;gap:8px;
+  box-shadow:var(--sh);margin-bottom:0;
+}
+.cbc-item{display:flex;flex-direction:column;align-items:center;padding:0 20px}
+.cbc-val{font-size:22px;font-weight:800;line-height:1.2}
+.cbc-lbl{font-size:11px;color:var(--text2);margin-top:2px}
+.cbc-sep{font-size:22px;font-weight:300;color:var(--text2);padding:0 4px}
+@media(max-width:480px){.cbc-item{padding:0 10px}.cbc-val{font-size:18px}}
