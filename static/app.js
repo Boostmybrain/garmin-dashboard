@@ -961,7 +961,8 @@ function renderWeightChart(){
   const first=filtered[0].weight_kg;
   const diff=+(last-first).toFixed(1);
   const diffStr=(diff>0?'+':'')+diff+' kg';
-  document.getElementById('weightBadge').textContent=`${last} kg (${diffStr})`;
+  const badgeText=diff===0?`${last} kg`:`${last} kg (${diffStr})`;
+  document.getElementById('weightBadge').textContent=badgeText;
 
   const vals=filtered.map(d=>d.weight_kg);
   const yMin=+(Math.min(...vals)-1).toFixed(1);
