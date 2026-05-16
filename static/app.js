@@ -128,9 +128,65 @@ function renderSleepDonut(canvasId,phasesId,s){
   pk.forEach((k,i)=>{const m=s[k]||0,pct=tot>0?Math.round(m/tot*100):0;ph.innerHTML+=`<div class="phase-row"><div class="phase-dot" style="background:${pc[i]}"></div><span class="phase-lbl">${pn[i]}</span><div class="phase-bar-wrap"><div class="phase-bar" style="background:${pc[i]};width:${pct}%"></div></div><span class="phase-pct">${fmt(m)}</span></div>`;});
 }
 function renderRunChart(id,A){
-  const wm={};A.filter(a=>a.type==='running').forEach(a=>{const d=new Date(a.date),m=new Date(d);m.setDate(d.getDate()-d.getDay()+1);const wk=m.toISOString().slice(0,10);wm[wk]=(wm[wk]||0)+a.distance_km;});
-  const wks=Object.keys(wm).sort().slice(-10);
-  mkChart(id,{type:'bar',data:{labels:wks.map(fmtDate),datasets:[{label:'km',data:wks.map(w=>+(wm[w].toFixed(1))),backgroundColor:'#FF6B3540',borderColor:'#FF6B35',borderWidth:2,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} km`}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
+  // Palette couleurs par sortie (jusqu'à 7 courses/semaine)
+  const COLS=['#4A6CF7','#22C55E','#FF6B35','#F59E0B','#8B5CF6','#0EA5E9','#EF4444'];
+
+  // Grouper les courses par semaine (lundi = début)
+  const weekRuns={};
+  A.filter(a=>a.type==='running'&&a.distance_km>0).forEach(a=>{
+    const d=new Date(a.date);
+    const dow=d.getDay();
+    const mon=new Date(d);
+    mon.setDate(d.getDate()-(dow===0?6:dow-1));
+    const wk=mon.toISOString().slice(0,10);
+    if(!weekRuns[wk])weekRuns[wk]=[];
+    weekRuns[wk].push(+(a.distance_km.toFixed(1)));
+  });
+
+  const wks=Object.keys(weekRuns).sort().slice(-10);
+  const maxRuns=Math.max(1,...wks.map(w=>weekRuns[w].length));
+
+  // Un dataset par position de course (1ère, 2ème, 3ème…)
+  const datasets=[];
+  for(let i=0;i<maxRuns;i++){
+    const col=COLS[i%COLS.length];
+    datasets.push({
+      label:`Course ${i+1}`,
+      data:wks.map(w=>weekRuns[w][i]||0),
+      backgroundColor:col+'CC',
+      borderColor:col,
+      borderWidth:1.5,
+      borderRadius:i===maxRuns-1?4:0,
+      borderSkipped:'bottom',
+      stack:'runs',
+    });
+  }
+
+  mkChart(id,{
+    type:'bar',
+    data:{labels:wks.map(fmtDate),datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:c=>c.raw>0?`Course ${c.datasetIndex+1} : ${c.raw} km`:null,
+            footer:items=>{
+              const nz=items.filter(c=>c.raw>0);
+              if(!nz.length)return'';
+              const tot=nz.reduce((s,c)=>s+c.raw,0);
+              return`Total : ${tot.toFixed(1)} km  ·  ${nz.length} sortie${nz.length>1?'s':''}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}},
+      }
+    }
+  });
 }
 function actHTML(a){
   const ic=actIcon(a.type);
