@@ -585,7 +585,11 @@ function renderBedtimeChart(S){
 // ══════════════════════════════════════════
 function renderSleep(){
   const S=appData.sleep||[],Sp=byPeriod(S,curPeriod);
-  if(!Sp.length){document.getElementById('view-sleep').innerHTML=EMPTY;return;}
+  if(!Sp.length){
+    // Ne pas écraser le HTML — juste laisser les valeurs à '—'
+    ['sl_avgTotal','sl_avgDeep','sl_avgRem','sl_avgBed','sl_avgWake','sl_regularity'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent='—';});
+    return;
+  }
   const avg=(arr,k)=>arr.length?Math.round(arr.reduce((s,n)=>s+(n[k]||0),0)/arr.length):0;
   const avgTotal=avg(Sp,'sleepTotal_min'),avgDeep=avg(Sp,'deep_min'),avgLight=avg(Sp,'light_min'),avgRem=avg(Sp,'rem_min'),avgAwake=avg(Sp,'awake_min');
   const beds=Sp.map(s=>s.bedtime).filter(Boolean).sort();
@@ -727,7 +731,7 @@ function renderStressView(){
   document.getElementById('st_avgStress').textContent=avgS!=null?`${avgS} — ${stressInfo(avgS).label}`:'—';
   document.getElementById('st_avgHR').textContent=avgHR!=null?`${avgHR} bpm`:'—';
   document.getElementById('st_minHR').textContent=minRHR!=null?`${minRHR} bpm`:'—';
-  document.getElementById('st_bestStress').textContent=bestS!=null?`${bestS} (${stressInfo(bestS).label})`:'—';
+  // st_bestStress supprimé du HTML — ligne retirée
   document.getElementById('stressBadge2').textContent=curPeriod+'j';
   document.getElementById('hrBadge').textContent=curPeriod+'j';
 
