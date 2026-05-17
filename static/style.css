@@ -776,3 +776,25 @@ button,-webkit-tap-highlight-color:transparent;
 .cbc-lbl{font-size:11px;color:var(--text2);margin-top:2px}
 .cbc-sep{font-size:22px;font-weight:300;color:var(--text2);padding:0 4px}
 @media(max-width:480px){.cbc-item{padding:0 10px}.cbc-val{font-size:18px}}
+
+/* ══ RÉSUMÉ DU JOUR ══ */
+.day-summary-card{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);
+  box-shadow:var(--sh);padding:16px 20px;margin-bottom:20px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dsc-left{flex:1;min-width:0}
+.dsc-date{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:capitalize}
+.dsc-reco{font-size:15px;font-weight:700;color:var(--text);line-height:1.3}
+.dsc-stats{display:flex;gap:20px;flex-shrink:0}
+.dsc-stat{display:flex;flex-direction:column;align-items:center;gap:2px}
+.dsc-stat>span:first-child{font-size:17px;font-weight:800;line-height:1}
+.dsc-lbl{font-size:10px;color:var(--text2);font-weight:500}
+@media(max-width:480px){.dsc-stats{gap:10px}.dsc-stat>span:first-child{font-size:15px}}
+
+/* ══ PR RECORDS ══ */
+.pr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pr-card{background:var(--surface2);border-radius:12px;padding:16px;text-align:center}
+.pr-dist{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);letter-spacing:.5px;margin-bottom:6px}
+.pr-time{font-size:22px;font-weight:800;line-height:1;margin-bottom:4px}
+.pr-pace{font-size:11px;color:var(--text2)}
+.pr-date{font-size:10px;color:var(--text2);margin-top:4px;opacity:.7}
+@media(max-width:480px){.pr-grid{grid-template-columns:1fr 1fr}}

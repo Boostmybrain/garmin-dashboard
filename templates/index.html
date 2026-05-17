@@ -14,7 +14,7 @@
 <title>Mon Coach – Tableau de bord Garmin</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ css_v }}">
 </head>
 <body>
 
@@ -120,6 +120,20 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Résumé du jour -->
+      <div class="day-summary-card" id="daySummaryCard" style="display:none">
+        <div class="dsc-left">
+          <div class="dsc-date" id="dscDate">—</div>
+          <div class="dsc-reco" id="dscReco">—</div>
+        </div>
+        <div class="dsc-stats">
+          <div class="dsc-stat"><span id="dscSteps">—</span><span class="dsc-lbl">pas</span></div>
+          <div class="dsc-stat"><span id="dscSleep">—</span><span class="dsc-lbl">sommeil</span></div>
+          <div class="dsc-stat"><span id="dscHR">—</span><span class="dsc-lbl">FC repos</span></div>
+          <div class="dsc-stat"><span id="dscStress2">—</span><span class="dsc-lbl">stress</span></div>
         </div>
       </div>
 
@@ -290,9 +304,15 @@
       <div class="panel-full">
         <div class="panel-header">
           <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/></svg>Tendance sommeil</div>
-          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepTrendBadge2">—</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepScoreBadge" style="display:none">—</span>
+            <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="sleepTrendBadge2">—</span>
+          </div>
         </div>
         <div style="height:220px;position:relative"><canvas id="sleepTrendFull"></canvas></div>
+        <div id="idealBedtimeBox" style="display:none;margin-top:10px;font-size:12px;color:var(--text2);text-align:center;padding:8px 12px;background:var(--surface2);border-radius:8px">
+          🌙 Heure idéale de coucher : <strong id="idealBedtimeVal">—</strong>
+        </div>
       </div>
       <!-- Graphique heures coucher / lever -->
       <div class="panel-full">
@@ -404,6 +424,26 @@
           </div>
           <div style="height:160px;position:relative"><canvas id="hrZonesChart"></canvas></div>
         </div>
+      </div>
+      <div class="panel-full" id="pacePanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" width="20" height="20"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            Évolution allure (course)
+          </div>
+          <span class="badge" style="background:var(--orange-l);color:var(--orange)" id="paceBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="paceChart"></canvas></div>
+      </div>
+      <div class="panel-full" id="prPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2" width="20" height="20"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Meilleurs efforts (course)
+          </div>
+          <span class="badge" style="background:#FEF3C7;color:var(--yellow)">PR estimés</span>
+        </div>
+        <div class="pr-grid" id="prGrid"></div>
       </div>
       <div class="panel-full">
         <div class="panel-header">
@@ -819,6 +859,6 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ js_v }}" defer></script>
 </body>
 </html>

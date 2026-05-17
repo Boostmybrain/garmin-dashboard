@@ -2,7 +2,7 @@
 Garmin Dashboard – Backend Flask
 Lancer : python app.py  →  http://localhost:5000
 """
-import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid, threading
+import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid, threading, hashlib
 from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -38,6 +38,21 @@ except ImportError:
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+
+def _file_hash(path):
+    try:
+        with open(path, 'rb') as f:
+            return hashlib.md5(f.read()).hexdigest()[:8]
+    except:
+        return '0'
+
+@app.context_processor
+def inject_static_version():
+    base = os.path.dirname(os.path.abspath(__file__))
+    return {
+        'css_v': _file_hash(os.path.join(base, 'static', 'style.css')),
+        'js_v':  _file_hash(os.path.join(base, 'static', 'app.js')),
+    }
 
 # DATA_DIR : répertoire persistant (volume Railway) ou local par défaut
 DATA_DIR       = Path(os.environ.get("DATA_DIR", Path(__file__).parent))

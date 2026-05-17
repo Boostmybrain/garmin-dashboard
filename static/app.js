@@ -5,6 +5,22 @@ const charts={};
 let appData=null, curView='dashboard', curPeriod=30, actFilter='all';
 const LS_KEY='garmin_v3', LS_GOALS='garmin_goals_v1', LS_DARK='garmin_dark';
 let nutriMeals=[];
+let lastSleepRegularityScore=5;
+
+// ══════════════════════════════════════════
+// SWIPE MOBILE — navigation entre vues
+// ══════════════════════════════════════════
+const VIEWS_ORDER=['dashboard','sleep','sport','paseforme','stress','nutrition','planning'];
+let _txStart=0,_tyStart=0;
+document.addEventListener('touchstart',e=>{_txStart=e.touches[0].clientX;_tyStart=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-_txStart;
+  const dy=e.changedTouches[0].clientY-_tyStart;
+  if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+  const idx=VIEWS_ORDER.indexOf(curView);
+  if(dx<0&&idx<VIEWS_ORDER.length-1)showView(VIEWS_ORDER[idx+1]);
+  if(dx>0&&idx>0)showView(VIEWS_ORDER[idx-1]);
+},{passive:true});
 
 // ══════════════════════════════════════════
 // CHART HELPERS
@@ -349,11 +365,59 @@ function renderComparison(W,S){
 }
 
 // ══════════════════════════════════════════
+// WIDGET RÉSUMÉ DU JOUR
+// ══════════════════════════════════════════
+function renderDaySummary(W,S,A){
+  const card=document.getElementById('daySummaryCard');if(!card)return;
+  if(!W.length&&!S.length){card.style.display='none';return;}
+  card.style.display='flex';
+  // Date du jour
+  const today=new Date();
+  const days=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const months=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  document.getElementById('dscDate').textContent=`${days[today.getDay()]} ${today.getDate()} ${months[today.getMonth()]}`;
+  // Stats du dernier jour
+  const lw=W.length?W[W.length-1]:{};
+  const ls=S.length?S[S.length-1]:{};
+  document.getElementById('dscSteps').textContent=lw.steps?Math.round(lw.steps/1000*10)/10+'k':'—';
+  document.getElementById('dscSleep').textContent=ls.sleepTotal_min?fmt(ls.sleepTotal_min):'—';
+  document.getElementById('dscHR').textContent=rhr(lw)?rhr(lw)+' bpm':'—';
+  document.getElementById('dscStress2').textContent=lw.stress>=0?lw.stress:'—';
+  // Recommandation basée sur freshness CTL/ATL + sommeil + stress
+  const refMax=Math.max(...A.filter(a=>a.maxHR).map(a=>a.maxHR),185);
+  const tssMap={};
+  A.forEach(a=>{
+    const intensity=a.avgHR?Math.min(1,a.avgHR/refMax):0.65;
+    const tss=a.duration_min*intensity*intensity*100/60;
+    tssMap[a.date]=(tssMap[a.date]||0)+tss;
+  });
+  const k_ctl=1-Math.exp(-1/42),k_atl=1-Math.exp(-1/7);
+  let ctl=0,atl=0;
+  for(let i=89;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const ds=d.toISOString().slice(0,10);
+    const tss=tssMap[ds]||0;
+    ctl+=k_ctl*(tss-ctl);atl+=k_atl*(tss-atl);
+  }
+  const freshness=ctl-atl;
+  const sleepH=(ls.sleepTotal_min||0)/60;
+  const stress=lw.stress>=0?lw.stress:50;
+  let reco='';
+  if(freshness>10&&sleepH>=7&&stress<50) reco='💪 Bonne fenêtre — séance intense possible';
+  else if(freshness<-15||sleepH<5.5||stress>65) reco='🛌 Récupération recommandée aujourd\'hui';
+  else if(freshness<-5||sleepH<6.5) reco='⚡ Séance légère ou modérée conseillée';
+  else reco='✅ Forme correcte — entraînement normal';
+  document.getElementById('dscReco').textContent=reco;
+}
+
+// ══════════════════════════════════════════
 // RENDER DASHBOARD
 // ══════════════════════════════════════════
 function renderDashboard(){
   const W=appData.wellness||[],A=appData.activities||[],S=appData.sleep||[],C=appData.customer||{};
   const Wp=byPeriod(W,curPeriod),Sp=byPeriod(S,curPeriod);
+
+  renderDaySummary(W,S,A);
 
   if(C.firstName){document.getElementById('userName').textContent=C.firstName;document.getElementById('avatarInitial').textContent=C.firstName[0].toUpperCase();}
 
@@ -534,6 +598,15 @@ function renderSleep(){
   mkChart('sleepTrendFull',{type:'bar',data:{labels:Sp.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:Sp.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:Sp.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:Sp.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:Sp.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=sleepTotals[items[0].dataIndex];return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',maxTicksLimit:12},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
   renderBedtimeChart(S);
   renderSleepRegularity(Sp);
+  // Score de sommeil
+  const avgDeepPct=avgTotal>0?(avgDeep/avgTotal):0;
+  const sleepDurScore=Math.min(40,avgTotal/480*40);
+  const sleepDepScore=Math.min(35,(avgDeepPct/0.20)*35);
+  const sleepRegScore=Math.min(25,lastSleepRegularityScore/10*25);
+  const sleepScore=Math.round(sleepDurScore+sleepDepScore+sleepRegScore);
+  const ssBadge=document.getElementById('sleepScoreBadge');
+  if(ssBadge&&avgTotal>0){ssBadge.textContent=`Score ${sleepScore}/100`;ssBadge.style.display='';}
+  renderIdealBedtime(Sp);
   renderSleepCorrelation(S,appData.wellness||[]);
 
   const ls=S[S.length-1];
@@ -544,6 +617,64 @@ function renderSleep(){
   document.getElementById('sl2_wake').textContent=ls.wakeTime||'—';
   renderSleepDonut('sleepDonut2','sleepPhases2',ls);
   mkChart('sleepPhaseAvg',{type:'bar',data:{labels:['Profond','Léger','REM','Éveil'],datasets:[{data:[avgDeep,avgLight,avgRem,avgAwake],backgroundColor:['#4A6CF7','#818CF8','#C4B5FD','#FCA5A5'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)}}},scales:{x:{display:true,ticks:{font:{size:11},color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmt(v)},grid:{color:'var(--surface2)'}}}}});
+}
+
+// ══════════════════════════════════════════
+// SPORT — ÉVOLUTION ALLURE
+// ══════════════════════════════════════════
+function renderPaceChart(A){
+  const panel=document.getElementById('pacePanel');if(!panel)return;
+  const runs=A.filter(a=>a.type==='running'&&a.distance_km>1&&a.duration_min>0)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(runs.length<3){panel.style.display='none';return;}
+  panel.style.display='block';
+  const paces=runs.map(r=>+(r.duration_min/r.distance_km).toFixed(2));
+  const smoothed=paces.map((p,i)=>{
+    const sl=paces.slice(Math.max(0,i-2),i+1);
+    return +(sl.reduce((s,v)=>s+v,0)/sl.length).toFixed(2);
+  });
+  const last=paces[paces.length-1];
+  const pFmt=v=>`${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"`;
+  document.getElementById('paceBadge').textContent=pFmt(last)+'/km';
+  const all=[...paces,...smoothed];
+  const yMin=+(Math.min(...all)-0.5).toFixed(1);
+  const yMax=+(Math.max(...all)+0.5).toFixed(1);
+  mkChart('paceChart',{type:'line',
+    data:{labels:runs.map(r=>fmtDate(r.date)),datasets:[
+      {label:'Allure',data:paces,borderColor:'#FF6B3550',backgroundColor:'transparent',borderWidth:1,pointRadius:1.5,tension:.2},
+      {label:'Tendance',data:smoothed,borderColor:'#FF6B35',backgroundColor:'transparent',borderWidth:2.5,pointRadius:0,tension:.4},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${pFmt(c.raw)}/km`}}},
+      scales:{
+        x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,min:yMin,max:yMax,reverse:true,
+          ticks:{font:{size:9},color:'#9CA3AF',callback:v=>pFmt(v)},
+          grid:{color:'var(--surface2)'}}}}
+  });
+}
+
+// ══════════════════════════════════════════
+// SPORT — PR RECORDS
+// ══════════════════════════════════════════
+function renderPRCards(A){
+  const panel=document.getElementById('prPanel');if(!panel)return;
+  const runs=A.filter(a=>a.type==='running'&&a.distance_km>0&&a.duration_min>0);
+  if(!runs.length){panel.style.display='none';return;}
+  const targets=[{dist:5,label:'5 km'},{dist:10,label:'10 km'},{dist:21.0975,label:'Semi-marathon'}];
+  const pFmt=v=>`${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"`;
+  const tFmt=min=>{const h=Math.floor(min/60),m=Math.floor(min%60),s=Math.round((min*60)%60);return h>0?`${h}h${String(m).padStart(2,'0')}'${String(s).padStart(2,'0')}"`:`${m}'${String(s).padStart(2,'0')}"`; };
+  const cards=targets.map(t=>{
+    const matching=runs.filter(r=>r.distance_km>=t.dist*0.7&&r.distance_km<=t.dist*1.3);
+    if(!matching.length)return null;
+    const best=matching.reduce((b,r)=>{const p=r.duration_min/r.distance_km;return p<b.pace?{pace:p,r}:b;},{pace:Infinity,r:null});
+    if(!best.r)return null;
+    return{label:t.label,time:tFmt(best.pace*t.dist),pace:pFmt(best.pace)+'/km',date:fmtDate(best.r.date)};
+  }).filter(Boolean);
+  if(!cards.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('prGrid').innerHTML=cards.map(c=>`<div class="pr-card"><div class="pr-dist">${c.label}</div><div class="pr-time">${c.time}</div><div class="pr-pace">${c.pace}</div><div class="pr-date">${c.date}</div></div>`).join('');
 }
 
 // ══════════════════════════════════════════
@@ -575,6 +706,8 @@ function renderSport(){
   renderRunChart('runChartFull',A);
   renderVo2maxChart(A,cutoffStr);
   renderHRZones(A,cutoffStr);
+  renderPaceChart(A);
+  renderPRCards(A);
 
   document.querySelectorAll('#actFilterTabs .filter-tab').forEach(tab=>{const m=(tab.getAttribute('onclick')||'').match(/'([^']+)'/);tab.classList.toggle('active',m&&m[1]===actFilter);});
   document.getElementById('actListFull').innerHTML=filtered.length?filtered.map(actHTML).join(''):'<p style="color:var(--text2);font-size:13px;padding:16px 0">Aucune activité pour ce filtre.</p>';
@@ -775,6 +908,15 @@ function renderWeeklyReport(W,S,A){
 // ══════════════════════════════════════════
 // SPORT — VO2MAX CHART
 // ══════════════════════════════════════════
+function linReg(xs,ys){
+  const n=xs.length;if(n<2)return{slope:0,intercept:ys[0]||0};
+  const sx=xs.reduce((a,b)=>a+b,0),sy=ys.reduce((a,b)=>a+b,0);
+  const sxy=xs.reduce((s,x,i)=>s+x*ys[i],0),sx2=xs.reduce((s,x)=>s+x*x,0);
+  const denom=(n*sx2-sx*sx)||1;
+  const slope=(n*sxy-sx*sy)/denom;
+  return{slope,intercept:(sy-slope*sx)/n};
+}
+
 function renderVo2maxChart(A,cutoffStr){
   const panel=document.getElementById('vo2maxPanel');if(!panel)return;
   const all=A.filter(a=>a.vo2max&&a.type==='running').sort((a,b)=>a.date.localeCompare(b.date));
@@ -791,6 +933,41 @@ function renderVo2maxChart(A,cutoffStr){
   const vals=display.map(p=>p.vo2max);
   const yMin=Math.max(0,Math.min(...vals)-2);
   const yMax=Math.max(...vals)+2;
+  // Projection linéaire 90j (seulement si ≥5 points)
+  if(display.length>=5){
+    const xs=display.map((_,i)=>i);
+    const reg=linReg(xs,vals);
+    const lastIdx=display.length-1;
+    // 3 points futurs espacés de 30j
+    const futureLabels=[30,60,90].map(d=>{const dt=new Date(display[lastIdx].date);dt.setDate(dt.getDate()+d);return fmtDate(dt.toISOString().slice(0,10));});
+    // Valeurs projetées (continuation de la tendance)
+    const step=30/(display.length>1?(new Date(display[lastIdx].date)-new Date(display[0].date))/(display.length-1)/86400000:1);
+    const futureVals=[1,2,3].map(k=>+(reg.slope*(lastIdx+k*step)+reg.intercept).toFixed(1));
+    // Données combinées : nulls pour les points réels, puis les projections
+    const projData=Array(display.length).fill(null);
+    projData[display.length-1]=vals[display.length-1]; // connecter depuis le dernier point
+    const allLabels=[...display.map(p=>fmtDate(p.date)),...futureLabels];
+    const allVals=[...vals,...Array(3).fill(null)];
+    const allProj=[...projData,...futureVals];
+    const projectedIn90=futureVals[2];
+    const projDiff=+(projectedIn90-vals[vals.length-1]).toFixed(1);
+    document.getElementById('vo2maxBadge').textContent=`${vals[vals.length-1]} mL/kg/min → ~${projectedIn90} (${projDiff>0?'+':''}${projDiff})`;
+    const forecastDataset={label:'Tendance 90j',data:allProj,borderColor:'#F59E0B',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,5],pointRadius:3,tension:.4,spanGaps:true};
+    // On doit reconstruire le chart avec les labels étendus
+    mkChart('vo2maxChart',{type:'line',
+      data:{labels:allLabels,datasets:[
+        {label:'VO2max',data:allVals,borderColor:'#0EA5E9',backgroundColor:'#0EA5E920',borderWidth:2.5,pointRadius:3,fill:true,tension:.4,spanGaps:false},
+        forecastDataset,
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
+          tooltip:{callbacks:{label:c=>c.raw!=null?`${c.dataset.label}: ${c.raw} mL/kg/min`:null}}},
+        scales:{
+          x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},
+          y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}
+    });
+    return; // évite le double rendu
+  }
   mkChart('vo2maxChart',{
     type:'line',
     data:{labels:display.map(p=>fmtDate(p.date)),datasets:[{
@@ -912,6 +1089,23 @@ function renderSleepRegularity(Sp){
   const stddev=Math.sqrt(beds.reduce((s,v)=>s+(v-meanB)**2,0)/beds.length);
   const score=Math.max(0,Math.min(10,10-stddev*2)).toFixed(1);
   document.getElementById('sl_regularity').textContent=score;
+  lastSleepRegularityScore=parseFloat(score);
+}
+
+// ══════════════════════════════════════════
+// SOMMEIL — HEURE IDÉALE DE COUCHER
+// ══════════════════════════════════════════
+function renderIdealBedtime(Sp){
+  const box=document.getElementById('idealBedtimeBox');if(!box)return;
+  const valid=Sp.filter(s=>s.bedtime&&s.deep_min>0&&s.sleepTotal_min>0);
+  if(valid.length<5){box.style.display='none';return;}
+  const sorted=[...valid].sort((a,b)=>b.deep_min/b.sleepTotal_min-a.deep_min/a.sleepTotal_min);
+  const top=sorted.slice(0,Math.max(3,Math.floor(sorted.length*0.25)));
+  const beds=top.map(s=>{const[h,m]=s.bedtime.split(':').map(Number);let d=h+m/60;if(d<14)d+=24;return d;}).sort((a,b)=>a-b);
+  const med=beds[Math.floor(beds.length/2)];
+  const hh=Math.floor(med%24);const mm=String(Math.round((med%1)*60)).padStart(2,'0');
+  document.getElementById('idealBedtimeVal').textContent=`${String(hh).padStart(2,'0')}:${mm}`;
+  box.style.display='block';
 }
 
 // ══════════════════════════════════════════
