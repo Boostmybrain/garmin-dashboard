@@ -1197,6 +1197,149 @@ def api_sync_garmin_status():
 
 
 # ──────────────────────────────────────────────
+# IMPORT .APKG (export AnkiWeb/Anki desktop)
+# ──────────────────────────────────────────────
+@app.route("/api/flashcards/import-apkg", methods=["POST"])
+def fc_import_apkg():
+    """Importe un fichier .apkg exporté depuis AnkiWeb ou Anki desktop.
+    Format .apkg = ZIP contenant collection.anki2 (SQLite).
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "Aucun fichier reçu"}), 400
+
+    f = request.files["file"]
+    if not f.filename.lower().endswith(".apkg"):
+        return jsonify({"error": "Format invalide — fichier .apkg requis"}), 400
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".apkg")
+    f.save(tmp.name)
+    tmp.close()
+
+    try:
+        with zipfile.ZipFile(tmp.name) as z:
+            names = z.namelist()
+            # Chercher la base SQLite (collection.anki2 ou collection.anki21)
+            db_name = next(
+                (n for n in names if n in ("collection.anki2", "collection.anki21")),
+                None
+            )
+            if not db_name:
+                return jsonify({"error": "Fichier .apkg invalide (base de données introuvable)"}), 400
+
+            db_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+            db_tmp.write(z.read(db_name))
+            db_tmp.close()
+
+        # Lire les notes depuis la base Anki
+        cards_by_deck = {}   # deck_name → [cards]
+        with sqlite3.connect(db_tmp.name) as ac:
+            ac.row_factory = sqlite3.Row
+
+            # Récupérer les noms de decks
+            try:
+                conf_row = ac.execute("SELECT decks FROM col").fetchone()
+                decks_json = json.loads(conf_row[0]) if conf_row else {}
+                deck_map = {str(v["id"]): v["name"] for v in decks_json.values()
+                            if isinstance(v, dict) and "id" in v and "name" in v}
+            except Exception:
+                deck_map = {}
+
+            # Récupérer les notes (cards)
+            notes = ac.execute(
+                "SELECT id, flds, tags, did FROM notes n "
+                "LEFT JOIN cards c ON c.nid = n.id "
+                "GROUP BY n.id"
+            ).fetchall()
+
+            for note in notes:
+                fields = note["flds"].split("\x1f")
+                front = _strip_html_anki(fields[0]) if len(fields) > 0 else ""
+                back  = _strip_html_anki(fields[1]) if len(fields) > 1 else ""
+                if not front or not back:
+                    continue
+
+                did       = str(note["did"]) if note["did"] else "1"
+                deck_name = deck_map.get(did, "Importé")
+                # Ignorer les decks "Default" vides
+                if deck_name == "Default" and not front:
+                    continue
+
+                if deck_name not in cards_by_deck:
+                    cards_by_deck[deck_name] = []
+                cards_by_deck[deck_name].append({
+                    "front": front,
+                    "back":  back,
+                    "anki_note_id": note["id"],
+                })
+
+        # Insérer dans notre DB
+        today = _date.today().isoformat()
+        total_added = 0
+        decks_created = []
+
+        with sqlite3.connect(DATABASE) as c:
+            for deck_name, cards in cards_by_deck.items():
+                if not cards:
+                    continue
+                # Créer ou récupérer le deck
+                existing = c.execute(
+                    "SELECT id FROM fc_decks WHERE name=?", [deck_name]
+                ).fetchone()
+                if existing:
+                    deck_id = existing[0]
+                else:
+                    cur = c.execute(
+                        "INSERT INTO fc_decks(name,created_at,anki_name) VALUES(?,?,?)",
+                        [deck_name, datetime.now(timezone.utc).isoformat(), deck_name]
+                    )
+                    deck_id = cur.lastrowid
+                    decks_created.append(deck_name)
+
+                # Insérer les cartes (déduplication par anki_note_id)
+                for card in cards:
+                    existing_card = c.execute(
+                        "SELECT id FROM fc_cards WHERE deck_id=? AND anki_note_id=?",
+                        [deck_id, card["anki_note_id"]]
+                    ).fetchone()
+                    if existing_card:
+                        c.execute(
+                            "UPDATE fc_cards SET front=?, back=? WHERE id=?",
+                            [card["front"], card["back"], existing_card[0]]
+                        )
+                    else:
+                        c.execute(
+                            "INSERT INTO fc_cards(deck_id,front,back,anki_note_id,due_date) VALUES(?,?,?,?,?)",
+                            [deck_id, card["front"], card["back"], card["anki_note_id"], today]
+                        )
+                        total_added += 1
+
+        return jsonify({
+            "ok": True,
+            "total_added": total_added,
+            "decks": list(cards_by_deck.keys()),
+            "decks_created": decks_created,
+            "cards_per_deck": {k: len(v) for k, v in cards_by_deck.items()},
+        })
+
+    except zipfile.BadZipFile:
+        return jsonify({"error": "Fichier .apkg corrompu ou invalide"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        os.unlink(tmp.name)
+        try: os.unlink(db_tmp.name)
+        except: pass
+
+
+def _strip_html_anki(html: str) -> str:
+    """Retire les balises HTML des champs Anki."""
+    import re as _re
+    text = _re.sub(r"<[^>]+>", " ", html or "")
+    text = text.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    return " ".join(text.split()).strip()
+
+
+# ──────────────────────────────────────────────
 # FLASHCARDS — SM-2 + ROUTES
 # ──────────────────────────────────────────────
 from datetime import date as _date, timedelta as _timedelta

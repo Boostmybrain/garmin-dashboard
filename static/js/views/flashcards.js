@@ -11,24 +11,65 @@ let _fcCurrentDeck  = null; // {id, name}
 let _fcMode         = 'list'; // 'list' | 'review' | 'anki' | 'add'
 
 // ══════════════════════════════════════════
-// ANKI CONNECT (navigateur → localhost:8765)
+// IMPORT .APKG (AnkiWeb / Anki desktop)
 // ══════════════════════════════════════════
-async function _ankiCall(action, params = {}) {
-  const r = await fetch('http://localhost:8765', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, version: 6, params }),
-  });
-  const j = await r.json();
-  if (j.error) throw new Error(j.error);
-  return j.result;
+function _fcOpenApkgImport() {
+  // Ouvrir le sélecteur de fichier
+  const inp = document.getElementById('fcApkgInput');
+  if (inp) inp.click();
 }
 
-async function _testAnkiConnect() {
+async function _fcHandleApkg(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = ''; // reset pour pouvoir re-sélectionner le même fichier
+
+  // Afficher un état de chargement
+  const wrap = document.getElementById('fcWrap');
+  const oldContent = wrap.innerHTML;
+  wrap.innerHTML = `
+    <div style="text-align:center;padding:48px 24px">
+      <div class="fc-spinner"></div>
+      <h3 style="margin-top:16px;font-size:16px;font-weight:700">Import en cours…</h3>
+      <p style="color:var(--text2);font-size:13px;margin-top:6px">Lecture de ${file.name}</p>
+    </div>`;
+
   try {
-    const v = await _ankiCall('version');
-    return v >= 6;
-  } catch { return false; }
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch('/api/flashcards/import-apkg', { method: 'POST', body: fd });
+    const j = await r.json();
+
+    if (!r.ok || j.error) {
+      wrap.innerHTML = `
+        <div style="text-align:center;padding:32px">
+          <p style="color:var(--red);font-weight:700">❌ ${j.error}</p>
+          <button class="fc-btn fc-btn-secondary" style="margin-top:12px"
+            onclick="renderFlashcards()">Retour</button>
+        </div>`;
+      return;
+    }
+
+    // Succès
+    const lines = j.decks.map(d => `• ${d} — ${j.cards_per_deck[d]} carte${j.cards_per_deck[d]>1?'s':''}`).join('<br>');
+    wrap.innerHTML = `
+      <div style="text-align:center;padding:32px;display:flex;flex-direction:column;align-items:center;gap:14px">
+        <div style="font-size:56px">✅</div>
+        <h3 style="font-size:18px;font-weight:800;margin:0">${j.total_added} cartes importées</h3>
+        <div style="font-size:13px;color:var(--text2);line-height:1.8">${lines}</div>
+        <button class="fc-btn fc-btn-primary" style="margin-top:8px"
+          onclick="renderFlashcards()">Voir mes decks</button>
+      </div>`;
+    showToast(`${j.total_added} cartes importées !`);
+
+  } catch(e) {
+    wrap.innerHTML = `
+      <div style="text-align:center;padding:32px">
+        <p style="color:var(--red)">❌ Erreur : ${e.message}</p>
+        <button class="fc-btn fc-btn-secondary" style="margin-top:12px"
+          onclick="renderFlashcards()">Retour</button>
+      </div>`;
+  }
 }
 
 // ══════════════════════════════════════════
@@ -90,12 +131,12 @@ async function _renderDeckList(wrap) {
 
     <!-- Actions -->
     <div class="fc-actions">
-      <button class="fc-btn fc-btn-primary" onclick="_fcOpenAnkiImport()">
+      <button class="fc-btn fc-btn-primary" onclick="_fcOpenApkgImport()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        Importer depuis Anki
+        Importer fichier .apkg
       </button>
       <button class="fc-btn fc-btn-secondary" onclick="_fcOpenNewDeck()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -104,6 +145,9 @@ async function _renderDeckList(wrap) {
         Nouveau deck
       </button>
     </div>
+    <!-- Input fichier caché pour .apkg -->
+    <input type="file" id="fcApkgInput" accept=".apkg" style="display:none"
+           onchange="_fcHandleApkg(this)">
 
     <!-- Formulaire nouveau deck (masqué) -->
     <div id="fcNewDeckForm" style="display:none;margin-bottom:16px">
@@ -156,150 +200,6 @@ async function _renderDeckList(wrap) {
   `;
 }
 
-// ══════════════════════════════════════════
-// IMPORT DEPUIS ANKI
-// ══════════════════════════════════════════
-function _fcOpenAnkiImport() {
-  _fcMode = 'anki';
-  renderFlashcards();
-}
-
-async function _renderAnkiImport(wrap) {
-  wrap.innerHTML = `
-    <div class="fc-back-bar">
-      <button class="fc-btn fc-btn-ghost" onclick="_fcMode='list';renderFlashcards()">← Retour</button>
-      <h3 style="margin:0;font-size:16px;font-weight:700">Importer depuis Anki</h3>
-    </div>
-    <div class="fc-anki-info">
-      <p style="font-size:13px;color:var(--text2);line-height:1.6">
-        ⚙️ Pour importer, <strong>Anki doit être ouvert</strong> sur ce PC avec le plugin
-        <strong>AnkiConnect</strong> installé.<br>
-        <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" style="color:var(--blue)">
-          Installer AnkiConnect (code : 2055492159)
-        </a>
-      </p>
-    </div>
-    <div id="fcAnkiContent">
-      <div style="text-align:center;padding:32px">
-        <div class="fc-spinner"></div>
-        <p style="margin-top:12px;font-size:13px;color:var(--text2)">Connexion à Anki…</p>
-      </div>
-    </div>
-  `;
-
-  const content = document.getElementById('fcAnkiContent');
-
-  // Tester la connexion
-  const ok = await _testAnkiConnect();
-  if (!ok) {
-    content.innerHTML = `
-      <div class="fc-anki-error">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <h3>Anki non détecté</h3>
-        <p>Vérifiez que :</p>
-        <ol>
-          <li>Anki est ouvert sur ce PC</li>
-          <li>Le plugin AnkiConnect est installé (code 2055492159)</li>
-          <li>Vous accédez à l'app depuis <strong>ce PC</strong> (pas depuis un autre appareil)</li>
-        </ol>
-        <button class="fc-btn fc-btn-primary" onclick="_renderAnkiImport(document.getElementById('fcWrap').querySelector('#fcAnkiContent').parentElement)">
-          Réessayer
-        </button>
-      </div>
-    `;
-    return;
-  }
-
-  // Récupérer les decks Anki
-  try {
-    const ankiDecks = await _ankiCall('deckNamesAndIds');
-    const deckNames = Object.keys(ankiDecks).filter(n => n !== 'Default').sort();
-
-    content.innerHTML = `
-      <p style="font-size:13px;color:var(--green);font-weight:600;margin-bottom:14px">
-        ✅ Anki connecté — ${deckNames.length} deck${deckNames.length>1?'s':''} trouvé${deckNames.length>1?'s':''}
-      </p>
-      <div class="fc-anki-decks">
-        ${deckNames.map(name => `
-          <div class="fc-anki-deck-row">
-            <span class="fc-anki-deck-name">${name}</span>
-            <button class="fc-btn fc-btn-primary fc-btn-sm"
-              onclick="_fcImportAnkiDeck('${name.replace(/'/g,"\\'")}',this)">
-              Importer
-            </button>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  } catch (e) {
-    content.innerHTML = `<p style="color:var(--red)">Erreur : ${e.message}</p>`;
-  }
-}
-
-async function _fcImportAnkiDeck(deckName, btn) {
-  btn.disabled = true;
-  btn.textContent = '…';
-
-  try {
-    // 1. Obtenir les IDs de notes du deck
-    const noteIds = await _ankiCall('findNotes', { query: `deck:"${deckName}"` });
-    if (!noteIds.length) {
-      btn.textContent = '0 carte';
-      return;
-    }
-
-    // 2. Récupérer les infos des notes par batch de 50
-    const cards = [];
-    for (let i = 0; i < noteIds.length; i += 50) {
-      const batch = noteIds.slice(i, i + 50);
-      const infos = await _ankiCall('notesInfo', { notes: batch });
-      for (const note of infos) {
-        const fields = note.fields;
-        const front = fields.Front?.value || fields.front?.value
-          || Object.values(fields)[0]?.value || '';
-        const back  = fields.Back?.value  || fields.back?.value
-          || Object.values(fields)[1]?.value || '';
-        if (front && back) {
-          cards.push({ front: _stripHtml(front), back: _stripHtml(back), anki_note_id: note.noteId });
-        }
-      }
-      btn.textContent = `${Math.min(i+50, noteIds.length)}/${noteIds.length}`;
-    }
-
-    // 3. Créer ou récupérer le deck dans notre DB
-    const deckRes = await fetch('/api/flashcards/decks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: deckName, anki_name: deckName })
-    });
-    const deckJ = await deckRes.json();
-    const deckId = deckJ.id || (await (await fetch('/api/flashcards/decks')).json()).decks.find(d=>d.name===deckName)?.id;
-
-    // 4. Envoyer les cartes
-    await fetch(`/api/flashcards/decks/${deckId}/cards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cards })
-    });
-
-    btn.textContent = `✓ ${cards.length} cartes`;
-    btn.style.background = 'var(--green)';
-    showToast(`${cards.length} cartes importées depuis «${deckName}»`);
-  } catch (e) {
-    btn.textContent = '❌ Erreur';
-    btn.disabled = false;
-    console.error(e);
-  }
-}
-
-function _stripHtml(html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || html;
-}
 
 // ══════════════════════════════════════════
 // MODE RÉVISION
