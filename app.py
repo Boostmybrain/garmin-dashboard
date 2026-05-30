@@ -1232,45 +1232,69 @@ def fc_import_apkg():
 
         # Lire les notes depuis la base Anki
         cards_by_deck = {}   # deck_name → [cards]
+        debug_info = {}
         with sqlite3.connect(db_tmp.name) as ac:
-            ac.row_factory = sqlite3.Row
 
-            # Récupérer les noms de decks
+            # Lister les tables disponibles
+            tables = [r[0] for r in ac.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()]
+            debug_info['tables'] = tables
+
+            # Récupérer les noms de decks depuis col
+            deck_map = {}
             try:
                 conf_row = ac.execute("SELECT decks FROM col").fetchone()
                 decks_json = json.loads(conf_row[0]) if conf_row else {}
                 deck_map = {str(v["id"]): v["name"] for v in decks_json.values()
                             if isinstance(v, dict) and "id" in v and "name" in v}
-            except Exception:
-                deck_map = {}
+                debug_info['deck_map'] = deck_map
+            except Exception as e:
+                debug_info['deck_map_error'] = str(e)
 
-            # Récupérer les notes (cards)
-            notes = ac.execute(
-                "SELECT n.id, n.flds, n.tags, c.did "
-                "FROM notes n "
-                "LEFT JOIN cards c ON c.nid = n.id "
-                "GROUP BY n.id"
-            ).fetchall()
+            # Compter les notes
+            note_count = ac.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
+            debug_info['note_count'] = note_count
 
-            for note in notes:
-                fields = note["flds"].split("\x1f")
+            if note_count == 0:
+                return jsonify({"ok": True, "total_added": 0,
+                                "decks": [], "decks_created": [],
+                                "cards_per_deck": {}, "debug": debug_info})
+
+            # Lire un échantillon pour debug
+            sample = ac.execute("SELECT id, flds FROM notes LIMIT 3").fetchall()
+            debug_info['sample_flds'] = [
+                {'id': r[0], 'fields_count': len(r[1].split('\x1f')),
+                 'preview': r[1][:100]}
+                for r in sample
+            ]
+
+            # Mapping note_id → deck_id depuis la table cards
+            nid_to_did = {}
+            for row in ac.execute("SELECT nid, did FROM cards"):
+                nid_to_did[row[0]] = row[1]
+            debug_info['cards_count'] = len(nid_to_did)
+
+            # Parcourir toutes les notes
+            for row in ac.execute("SELECT id, flds FROM notes"):
+                note_id = row[0]
+                flds    = row[1]
+
+                fields = flds.split("\x1f")
                 front = _strip_html_anki(fields[0]) if len(fields) > 0 else ""
                 back  = _strip_html_anki(fields[1]) if len(fields) > 1 else ""
                 if not front or not back:
                     continue
 
-                did       = str(note["did"]) if note["did"] else "1"
+                did       = str(nid_to_did.get(note_id, ""))
                 deck_name = deck_map.get(did, "Importé")
-                # Ignorer les decks "Default" vides
-                if deck_name == "Default" and not front:
-                    continue
 
                 if deck_name not in cards_by_deck:
                     cards_by_deck[deck_name] = []
                 cards_by_deck[deck_name].append({
                     "front": front,
                     "back":  back,
-                    "anki_note_id": note["id"],
+                    "anki_note_id": note_id,
                 })
 
         # Insérer dans notre DB
@@ -1320,6 +1344,7 @@ def fc_import_apkg():
             "decks": list(cards_by_deck.keys()),
             "decks_created": decks_created,
             "cards_per_deck": {k: len(v) for k, v in cards_by_deck.items()},
+            "debug": debug_info,
         })
 
     except zipfile.BadZipFile:
