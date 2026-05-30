@@ -18,36 +18,49 @@
 </head>
 <body>
 
+<!-- SKIP LINK accessibilité clavier -->
+<a class="skip-link" href="#main-content">Aller au contenu</a>
+
+<!-- PULL-TO-REFRESH indicator -->
+<div class="ptr-indicator" id="ptrIndicator" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>
+</div>
+
 <!-- SIDEBAR BACKDROP (mobile) -->
 <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar" id="sidebar" aria-label="Navigation principale">
   <div class="logo">
     <div class="logo-icon"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
     <div class="logo-text"><h3>Mon Coach</h3><p>Performance</p></div>
   </div>
-  <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+  <nav role="navigation" aria-label="Vues">
+  <button class="nav-item active" data-view="dashboard" aria-label="Dashboard" aria-current="page" onclick="showView('dashboard')">
     <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
   </button>
-  <button class="nav-item" data-view="sleep" onclick="showView('sleep')">
+  <button class="nav-item" data-view="sleep" aria-label="Sommeil" aria-current="false" onclick="showView('sleep')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>Sommeil
   </button>
-  <button class="nav-item" data-view="sport" onclick="showView('sport')">
+  <button class="nav-item" data-view="sport" aria-label="Sport" aria-current="false" onclick="showView('sport')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Sport
   </button>
-  <button class="nav-item" data-view="stress" onclick="showView('stress')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress &amp; FC
+  <button class="nav-item" data-view="forme" aria-label="Forme et bien-être" aria-current="false" onclick="showView('forme')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Forme
   </button>
-  <button class="nav-item" data-view="paseforme" onclick="showView('paseforme')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>Pas &amp; forme
-  </button>
-  <button class="nav-item" data-view="nutrition" onclick="showView('nutrition')">
+  <button class="nav-item" data-view="nutrition" aria-label="Nutrition" aria-current="false" onclick="showView('nutrition')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5c0 3-2 5.5-5 8-3-2.5-5-5-5-8a5 5 0 0 1 5-5z"/><path d="M12 15v7M9 19h6"/></svg>Nutrition
   </button>
-  <button class="nav-item" data-view="planning" onclick="showView('planning')">
+  <button class="nav-item" data-view="habitudes" aria-label="Habitudes" aria-current="false" onclick="showView('habitudes')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Habitudes
+  </button>
+  <button class="nav-item" data-view="planning" aria-label="Planning" aria-current="false" onclick="showView('planning')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Planning
   </button>
+  </nav>
   <div class="sidebar-footer">
     <div class="sidebar-footer-row">
       <div class="avatar" id="avatarInitial">S</div>
@@ -61,7 +74,7 @@
 </aside>
 
 <!-- MAIN -->
-<div class="main">
+<div class="main" id="main-content">
   <div class="topbar">
     <div class="topbar-left" style="display:flex;align-items:center">
       <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
@@ -96,6 +109,25 @@
   </div>
 
   <div class="content">
+
+    <!-- ══════════════ BARRE PÉRIODE MOBILE (≤480px) ══════════════ -->
+    <div class="mobile-period-bar" id="mobilePeriodBar" aria-label="Sélecteur de période">
+      <span style="font-size:11px;font-weight:600;color:var(--text2)">Période :</span>
+      <button class="period-btn" onclick="setPeriod(7)">7j</button>
+      <button class="period-btn active" onclick="setPeriod(30)">30j</button>
+      <button class="period-btn" onclick="setPeriod(90)">90j</button>
+    </div>
+
+    <!-- ══════════════ NO-DATA OVERLAY ══════════════ -->
+    <div class="no-data-overlay" id="noDataOverlay" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="100" height="100">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      <h2>Aucune donnée importée</h2>
+      <p>Importez votre export Garmin Connect (ZIP ou RAR) pour explorer vos données santé &amp; sport.</p>
+      <button class="btn-import" onclick="openModal()">📁 Importer mes données Garmin</button>
+    </div>
 
     <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
@@ -461,46 +493,10 @@
       </div>
     </div>
 
-    <!-- ══════════════ STRESS & FC ══════════════ -->
-    <div class="view" id="view-stress">
-      <div class="stat-boxes">
-        <div class="stat-box"><div class="stat-box-val" id="st_avgStress">—</div><div class="stat-box-lbl">Stress moyen</div></div>
-        <div class="stat-box"><div class="stat-box-val" id="st_avgHR">—</div><div class="stat-box-lbl">FC repos moy.</div></div>
-        <div class="stat-box"><div class="stat-box-val" id="st_minHR">—</div><div class="stat-box-lbl">Meilleure FC repos</div></div>
-      </div>
-      <div class="panel-full">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress quotidien</div>
-          <span class="badge" style="background:#FEF3C7;color:var(--yellow)" id="stressBadge2">—</span>
-        </div>
-        <div style="height:200px;position:relative"><canvas id="stressChartFull"></canvas></div>
-      </div>
-      <div class="panel-full">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--teal)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>FC de repos — tendance</div>
-          <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="hrBadge">—</span>
-        </div>
-        <div style="height:200px;position:relative"><canvas id="hrRestChart"></canvas></div>
-      </div>
-      <div class="panel-full" id="bbPanel" style="display:none">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Body Battery</div>
-          <span class="badge" style="background:var(--green-l);color:var(--green)" id="bbBadge">—</span>
-        </div>
-        <div style="height:180px;position:relative"><canvas id="bbChart"></canvas></div>
-      </div>
-      <div class="panel-full" id="hrvPanel" style="display:none">
-        <div class="panel-header">
-          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>HRV — Variabilité cardiaque</div>
-          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="hrvBadge">—</span>
-        </div>
-        <div style="height:180px;position:relative"><canvas id="hrvChart"></canvas></div>
-      </div>
-    </div>
+    <!-- ══════════════ FORME & BIEN-ÊTRE (Pas + Stress fusionnés) ══════════════ -->
+    <div class="view" id="view-forme">
 
-    <!-- ══════════════ PAS & FORME ══════════════ -->
-    <div class="view" id="view-paseforme">
-      <!-- Pas quotidiens -->
+      <!-- ── Section Pas quotidiens ── -->
       <div class="panel-full">
         <div class="panel-header">
           <div class="panel-title">
@@ -513,7 +509,8 @@
         </div>
         <div style="height:220px;position:relative"><canvas id="stepsChartSport"></canvas></div>
       </div>
-      <!-- Charge d'entraînement ATL/CTL -->
+
+      <!-- ── Charge d'entraînement ATL/CTL ── -->
       <div class="panel-full" id="trainingLoadPanel" style="display:none">
         <div class="panel-header">
           <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/></svg>Charge d'entraînement — Forme / Fatigue</div>
@@ -554,7 +551,98 @@
         </div>
         <div style="height:180px;position:relative"><canvas id="trainingLoadChart"></canvas></div>
       </div>
-    </div>
+
+      <!-- ── Séparateur Stress & FC ── -->
+      <div class="section-divider">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Stress &amp; Fréquence Cardiaque
+      </div>
+
+      <!-- ── Stat boxes Stress ── -->
+      <div class="stat-boxes">
+        <div class="stat-box"><div class="stat-box-val" id="st_avgStress">—</div><div class="stat-box-lbl">Stress moyen</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="st_avgHR">—</div><div class="stat-box-lbl">FC repos moy.</div></div>
+        <div class="stat-box"><div class="stat-box-val" id="st_minHR">—</div><div class="stat-box-lbl">Meilleure FC repos</div></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Stress quotidien</div>
+          <span class="badge" style="background:#FEF3C7;color:var(--yellow)" id="stressBadge2">—</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="stressChartFull"></canvas></div>
+      </div>
+      <div class="panel-full">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="var(--teal)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>FC de repos — tendance</div>
+          <span class="badge" style="background:var(--teal-l);color:var(--teal)" id="hrBadge">—</span>
+        </div>
+        <div style="height:200px;position:relative"><canvas id="hrRestChart"></canvas></div>
+      </div>
+      <div class="panel-full" id="bbPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Body Battery</div>
+          <span class="badge" style="background:var(--green-l);color:var(--green)" id="bbBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="bbChart"></canvas></div>
+      </div>
+      <div class="panel-full" id="hrvPanel" style="display:none">
+        <div class="panel-header">
+          <div class="panel-title"><svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" width="20" height="20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>HRV — Variabilité cardiaque</div>
+          <span class="badge" style="background:var(--purple-l);color:var(--purple)" id="hrvBadge">—</span>
+        </div>
+        <div style="height:180px;position:relative"><canvas id="hrvChart"></canvas></div>
+      </div>
+
+    </div><!-- /view-forme -->
+
+    <!-- ══════════════ HABITUDES ══════════════ -->
+    <div class="view" id="view-habitudes">
+      <!-- Sélecteur de période -->
+      <div class="habit-period-bar">
+        <button class="habit-period-btn active" data-period="7"  onclick="setHabitPeriod(7)">7j</button>
+        <button class="habit-period-btn"        data-period="30" onclick="setHabitPeriod(30)">30j</button>
+        <button class="habit-period-btn"        data-period="90" onclick="setHabitPeriod(90)">90j</button>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="habit-stat-row">
+        <div class="habit-stat-card">
+          <div class="habit-stat-val" id="hbTotal">0</div>
+          <div class="habit-stat-lbl">Habitudes réalisées</div>
+        </div>
+        <div class="habit-stat-card">
+          <div class="habit-stat-val" id="hbPct">0%</div>
+          <div class="habit-stat-lbl">Taux de réussite</div>
+        </div>
+        <div class="habit-stat-card">
+          <div class="habit-stat-val" id="hbToday">0/6</div>
+          <div class="habit-stat-lbl">Aujourd'hui</div>
+        </div>
+        <div class="habit-stat-card">
+          <div class="habit-stat-val" id="hbStreak">0j</div>
+          <div class="habit-stat-lbl">Jours actifs</div>
+        </div>
+      </div>
+
+      <!-- Grille habitudes (scrollable horizontalement) -->
+      <div class="panel-full" style="padding:16px">
+        <div class="panel-header" style="margin-bottom:14px">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Suivi quotidien
+          </div>
+          <span class="badge" style="background:var(--blue-l);color:var(--blue)">Cliquez pour cocher</span>
+        </div>
+        <div class="habit-grid-outer">
+          <div id="habitGridWrap"></div>
+        </div>
+      </div>
+
+      <!-- Aide -->
+      <p style="text-align:center;font-size:12px;color:var(--text2);margin-top:4px">
+        ✅ Vert = réalisé · Cliquez sur une case pour cocher / décocher une habitude
+      </p>
+    </div><!-- /view-habitudes -->
 
     <!-- ══════════════ NUTRITION ══════════════ -->
     <div class="view" id="view-nutrition">
@@ -775,13 +863,16 @@
     </div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px">
-        Copiez-collez votre programme de la semaine ci-dessous.<br>
-        Format attendu : <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">LUNDI 19 MAI — FORCE BAS DU CORPS</code>
+        Copiez-collez votre programme ci-dessous.<br>
+        Format : <code style="background:var(--surface2);padding:2px 6px;border-radius:4px">VENDREDI 22 MAI</code> puis le titre sur la ligne suivante.
       </p>
-      <textarea id="planTextarea" class="plan-textarea" placeholder="VENDREDI 15 MAI — HAUT DU CORPS HYROX
-🏋️ Séance principale — 4 tours
-6–10 tractions strictes
-..."></textarea>
+      <textarea id="planTextarea" class="plan-textarea" placeholder="VENDREDI 22 MAI
+🏃 Fractionné Hyrox Run
+5 tours : 4 min à 4:45/km …
+
+SAMEDI 23 MAI
+💪 Force bas du corps
+Bloc A — 4 tours …"></textarea>
       <div id="planUploadErr" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
     </div>
     <div class="modal-footer">
@@ -802,34 +893,34 @@
 </div>
 
 <!-- BOTTOM NAV (mobile) -->
-<nav class="bottom-nav" id="bottomNav">
-  <button class="bnav-item active" data-view="dashboard" onclick="showView('dashboard')">
+<nav class="bottom-nav" id="bottomNav" aria-label="Navigation mobile">
+  <button class="bnav-item active" data-view="dashboard" aria-label="Accueil" aria-current="page" onclick="showView('dashboard')">
     <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     <span>Accueil</span><div class="bnav-dot"></div>
   </button>
-  <button class="bnav-item" data-view="sleep" onclick="showView('sleep')">
+  <button class="bnav-item" data-view="sleep" aria-label="Sommeil" aria-current="false" onclick="showView('sleep')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
     <span>Sommeil</span><div class="bnav-dot"></div>
   </button>
-  <button class="bnav-item" data-view="sport" onclick="showView('sport')">
+  <button class="bnav-item" data-view="sport" aria-label="Sport" aria-current="false" onclick="showView('sport')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
     <span>Sport</span><div class="bnav-dot"></div>
   </button>
-  <button class="bnav-item" data-view="paseforme" onclick="showView('paseforme')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>
-    <span>Pas</span><div class="bnav-dot"></div>
+  <button class="bnav-item" data-view="forme" aria-label="Forme et bien-être" aria-current="false" onclick="showView('forme')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span>Forme</span><div class="bnav-dot"></div>
   </button>
-  <button class="bnav-item" data-view="stress" onclick="showView('stress')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    <span>Stress</span><div class="bnav-dot"></div>
-  </button>
-  <button class="bnav-item" data-view="nutrition" onclick="showView('nutrition')">
+  <button class="bnav-item" data-view="nutrition" aria-label="Nutrition" aria-current="false" onclick="showView('nutrition')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
     </svg>
     <span>Nutrition</span><div class="bnav-dot"></div>
   </button>
-  <button class="bnav-item" data-view="planning" onclick="showView('planning')">
+  <button class="bnav-item" data-view="habitudes" aria-label="Habitudes" aria-current="false" onclick="showView('habitudes')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Habitudes</span><div class="bnav-dot"></div>
+  </button>
+  <button class="bnav-item" data-view="planning" aria-label="Planning" aria-current="false" onclick="showView('planning')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     <span>Planning</span><div class="bnav-dot"></div>
   </button>
@@ -859,6 +950,16 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='app.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/core.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/dashboard.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/sleep.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/sport.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/stress.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/paseforme.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/nutrition.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/planning.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/forme.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/habitudes.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v={{ js_v }}" defer></script>
 </body>
 </html>

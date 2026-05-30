@@ -1,16 +1,13 @@
 // ── Service Worker — Mon Coach Garmin Dashboard
-const CACHE = 'garmin-v5';
+const CACHE = 'garmin-v7';
 
-// Seuls les assets vraiment stables sont mis en cache
+// Seuls les assets vraiment stables sont mis en cache (externes, icônes)
 const STATIC_CACHE = [
   '/static/manifest.json',
   '/static/icons/icon-192.png',
   '/static/icons/icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
 ];
-
-// Ces fichiers changent souvent → toujours réseau, jamais cache
-const NO_CACHE = ['/static/app.js', '/static/style.css', '/'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -21,6 +18,7 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
+  // Supprimer TOUS les anciens caches (y compris garmin-v6 et versions précédentes)
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
@@ -36,15 +34,24 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // app.js, style.css, page HTML → toujours réseau (pas de cache)
-  if (NO_CACHE.includes(url.pathname) || e.request.mode === 'navigate') {
+  // Page HTML → toujours réseau (pour que le template Flask soit toujours frais)
+  if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request).catch(() => caches.match('/static/manifest.json'))
     );
     return;
   }
 
-  // Autres static (icônes, Chart.js, fonts) → cache d'abord
+  // JS et CSS → réseau d'abord (ils ont un ?v=hash en URL → cache-busting natif)
+  if (url.pathname.startsWith('/static/js/') || url.pathname.startsWith('/static/css/') ||
+      url.pathname === '/static/style.css') {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Autres static (icônes, Chart.js) → cache d'abord
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;

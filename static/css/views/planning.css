@@ -1,0 +1,133 @@
+/* ── planning.css — Module Planning : cards, layout master-detail, drag & drop ── */
+
+/* ══════════════════════════════════════
+   MODULE PLANNING
+══════════════════════════════════════ */
+.today-training-card{
+  background:var(--surface);border-radius:var(--r);padding:20px;
+  box-shadow:var(--sh);border-left:4px solid var(--blue);margin-bottom:0;
+}
+.today-training-card .tcard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.today-training-card .tcard-title{font-size:16px;font-weight:700}
+.today-training-card .tcard-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.today-training-card .tcard-badge{
+  font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;
+  background:var(--blue-l);color:var(--blue);white-space:nowrap;
+}
+.today-training-card .tcard-body{font-size:13px;line-height:1.7;color:var(--text)}
+.today-training-card .tcard-body .t-section{font-weight:700;margin-top:10px;display:block}
+.today-training-card .tcard-expand{
+  margin-top:12px;font-size:12px;color:var(--blue);cursor:pointer;
+  background:none;border:none;padding:0;font-family:inherit;
+}
+.today-rest{
+  background:var(--surface);border-radius:var(--r);padding:20px;
+  box-shadow:var(--sh);text-align:center;color:var(--text2);
+  border-left:4px solid var(--green);margin-bottom:16px;
+}
+.plan-upload-area{
+  border:2px dashed var(--border);border-radius:var(--r);
+  padding:28px;text-align:center;cursor:pointer;
+  background:var(--surface2);transition:.2s;
+}
+.plan-upload-area:hover{border-color:var(--blue);background:var(--blue-l)}
+.plan-textarea{
+  width:100%;min-height:200px;padding:12px;border:1px solid var(--border);
+  border-radius:12px;background:var(--surface);color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;
+}
+.week-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.day-card{
+  background:var(--surface);border-radius:var(--r);padding:16px;
+  box-shadow:var(--sh);border-top:3px solid var(--blue);cursor:pointer;
+  transition:transform .15s,box-shadow .15s;
+}
+.day-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px var(--shadow)}
+.day-card.today-highlight{box-shadow:0 0 0 2px var(--blue),var(--sh)}
+.day-card .dc-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.day-card .dc-day{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2)}
+.day-card .dc-title{font-size:14px;font-weight:700;line-height:1.3}
+.day-card .dc-preview{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.5}
+.day-detail-modal{
+  position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.day-detail-sheet{
+  background:var(--surface);border-radius:20px 20px 0 0;
+  width:100%;max-width:640px;max-height:85vh;overflow-y:auto;
+  padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));
+}
+.day-detail-sheet h2{font-size:18px;font-weight:800;margin-bottom:4px}
+.day-detail-sheet .dds-sub{font-size:13px;color:var(--text2);margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.day-detail-sheet .dds-content{font-size:14px;line-height:1.8}
+.day-detail-sheet .dds-close{
+  float:right;background:var(--surface2);border:none;border-radius:50%;
+  width:32px;height:32px;cursor:pointer;font-size:18px;color:var(--text2);
+  display:flex;align-items:center;justify-content:center;
+}
+.no-plan{text-align:center;padding:48px 24px;color:var(--text2)}
+.no-plan svg{width:56px;height:56px;margin:0 auto 16px;display:block;opacity:.3}
+
+/* Layout master-detail Planning */
+.plan-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.plan-layout{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start}
+.plan-detail-panel{
+  background:var(--surface);border-radius:var(--r);padding:24px;
+  box-shadow:var(--sh);min-height:400px;position:sticky;top:16px;
+}
+.plan-detail-panel .pdp-title{font-size:18px;font-weight:800;margin-bottom:4px}
+.plan-detail-panel .pdp-sub{font-size:13px;color:var(--text2);margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.plan-detail-panel .pdp-body{font-size:14px;line-height:1.8}
+.plan-list-panel{display:flex;flex-direction:column;gap:6px}
+
+/* Slot jour (date + bouton séance) */
+.plan-day-slot{
+  background:var(--surface);border-radius:14px;padding:10px 12px;
+  box-shadow:var(--sh);border:1.5px solid var(--border);
+  transition:border-color .15s,box-shadow .15s;
+}
+.plan-day-slot.today-slot{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)30}
+.plan-day-slot.drag-over{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 2px var(--blue)}
+
+/* Ligne date */
+.plan-slot-date{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.plan-slot-dayname{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)}
+.plan-slot-today-pill{
+  font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:20px;
+  background:var(--blue);color:#fff;letter-spacing:.3px;
+}
+
+/* Bouton séance draggable */
+.plan-session-btn{
+  width:100%;padding:9px 12px;border-radius:10px;
+  font-size:12.5px;font-weight:700;line-height:1.3;
+  border-left:3px solid var(--blue);
+  cursor:grab;user-select:none;
+  transition:opacity .15s,box-shadow .15s,transform .1s;
+  text-align:left;
+}
+.plan-session-btn:hover{box-shadow:0 2px 10px var(--shadow);transform:translateY(-1px)}
+.plan-session-btn.selected{box-shadow:0 0 0 2px var(--blue);outline:none}
+.plan-session-btn.is-today{font-size:13px}
+.plan-session-btn.dragging{opacity:.35;cursor:grabbing}
+.plan-session-btn:active{cursor:grabbing}
+
+/* Slot vide (zone de dépôt) */
+.plan-empty-slot{
+  padding:8px 12px;border-radius:10px;border:2px dashed var(--border);
+  font-size:11px;color:var(--text2);text-align:center;
+  transition:border-color .15s,background .15s;
+}
+.plan-day-slot.drag-over .plan-empty-slot{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+
+@media(max-width:768px){
+  .plan-layout{grid-template-columns:1fr;grid-template-rows:auto auto}
+  .plan-detail-panel{position:static;min-height:200px}
+  .plan-list-panel{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:8px}
+  .plan-day-slot{min-width:150px;flex-shrink:0}
+  .plan-detail-panel{order:2}
+  .plan-list-panel{order:1}
+}
+@media(max-width:600px){
+  .week-grid{grid-template-columns:1fr}
+}

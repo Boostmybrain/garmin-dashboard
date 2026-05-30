@@ -46,12 +46,24 @@ def _file_hash(path):
     except:
         return '0'
 
+def _dir_hash(directory):
+    """Hash combiné de tous les .js du dossier — change dès qu'un fichier est modifié."""
+    import glob as _glob
+    h = hashlib.md5()
+    for path in sorted(_glob.glob(os.path.join(directory, '**', '*.js'), recursive=True)):
+        try:
+            h.update(str(os.path.getmtime(path)).encode())
+            h.update(path.encode())
+        except Exception:
+            pass
+    return h.hexdigest()[:8]
+
 @app.context_processor
 def inject_static_version():
     base = os.path.dirname(os.path.abspath(__file__))
     return {
-        'css_v': _file_hash(os.path.join(base, 'static', 'style.css')),
-        'js_v':  _file_hash(os.path.join(base, 'static', 'app.js')),
+        'css_v': _dir_hash(os.path.join(base, 'static', 'css')),
+        'js_v':  _dir_hash(os.path.join(base, 'static', 'js')),
     }
 
 # DATA_DIR : répertoire persistant (volume Railway) ou local par défaut
@@ -371,13 +383,24 @@ _MOIS   = {
     'JUILLET':7,'AOÛT':8,'AOUT':8,'SEPTEMBRE':9,'OCTOBRE':10,'NOVEMBRE':11,
     'DÉCEMBRE':12,'DECEMBRE':12,
 }
+# Le titre après le tiret est OPTIONNEL : on accepte aussi "VENDREDI 22 MAI" seul
 _DAY_RE = re.compile(
-    r'(' + '|'.join(_JOURS) + r')\s+(\d{1,2})\s+(' + '|'.join(_MOIS.keys()) + r')\s*[—–\-]\s*(.+)',
+    r'(' + '|'.join(_JOURS) + r')\s+(\d{1,2})\s+(' + '|'.join(_MOIS.keys()) + r')(?:\s*[—–\-]\s*(.+))?',
     re.IGNORECASE,
 )
 _EMOJI_COLORS = {
+    # Cercles colorés (format ancien)
     '🟣':'#8B5CF6','🟢':'#22C55E','🔴':'#EF4444','🟡':'#F59E0B',
-    '⚪':'#9CA3AF','🟠':'#F97316','🔥':'#F97316',
+    '⚪':'#9CA3AF','🟠':'#F97316',
+    # Emojis sport (format titre sur ligne suivante)
+    '🏃':'#22C55E',   # course → vert
+    '💪':'#F97316',   # muscu → orange
+    '🏋️':'#EF4444',  # haltères → rouge
+    '🔥':'#F97316',   # recovery intense → orange
+    '🧘':'#8B5CF6',   # yoga → violet
+    '🚴':'#3B82F6',   # vélo → bleu
+    '🏊':'#0EA5E9',   # natation → cyan
+    '🔄':'#6B7280',   # récupération → gris
 }
 
 def parse_training_plan(text: str) -> list:
@@ -386,26 +409,49 @@ def parse_training_plan(text: str) -> list:
     for i, line in enumerate(lines):
         m = _DAY_RE.search(line.strip())
         if m:
+            # Titre inline (après le tiret) — peut être absent
+            inline_title = (m.group(4) or '').strip()
+
+            # Si pas de titre inline, chercher sur les lignes suivantes (max 3)
+            title = inline_title
+            title_line_idx = None   # index de la ligne où on a trouvé le titre
+            if not title:
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    candidate = lines[j].strip()
+                    if candidate:
+                        title = candidate
+                        title_line_idx = j
+                        break
+
+            # Couleur : chercher dans la ligne de date ET dans le titre trouvé
             color = '#4A6CF7'
+            search_text = line + ' ' + title
             for emoji, c in _EMOJI_COLORS.items():
-                if emoji in line:
+                if emoji in search_text:
                     color = c
                     break
+
             day_starts.append({
-                'line_idx': i,
+                'line_idx':       i,
+                'title_line_idx': title_line_idx,  # None si titre était inline
                 'day_name': m.group(1).upper(),
                 'day_num':  int(m.group(2)),
                 'month':    _MOIS.get(m.group(3).upper(), 0),
-                'title':    m.group(4).strip(),
+                'title':    title or '(Sans titre)',
                 'color':    color,
             })
     sessions = []
     for idx, ds in enumerate(day_starts):
         start = ds['line_idx'] + 1
         end   = day_starts[idx + 1]['line_idx'] if idx + 1 < len(day_starts) else len(lines)
-        content = '\n'.join(lines[start:end]).strip()
+        raw_lines = lines[start:end]
+        # Si le titre vient d'une ligne suivante, l'exclure du contenu pour éviter le doublon
+        if ds['title_line_idx'] is not None:
+            tl = ds['title_line_idx']
+            raw_lines = [l for li, l in enumerate(raw_lines, start=start) if li != tl]
+        content = '\n'.join(raw_lines).strip()
         # preview = first non-empty line of content
-        preview = next((l.strip() for l in lines[start:end] if l.strip()), '')
+        preview = next((l.strip() for l in raw_lines if l.strip()), '')
         sessions.append({
             'day_name': ds['day_name'],
             'day_num':  ds['day_num'],
@@ -644,6 +690,45 @@ _sync_thread.start()
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/reset")
+def reset_cache():
+    """Page de reset forcé : désinstalle le SW et vide tous les caches navigateur."""
+    html = """<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Mise à jour Mon Coach…</title>
+<style>
+  body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
+       min-height:100vh;margin:0;background:#f1f5f9;flex-direction:column;gap:16px;text-align:center}
+  h2{font-size:20px;font-weight:700;margin:0}
+  p{color:#64748B;font-size:14px;margin:0}
+  .spinner{width:40px;height:40px;border:3px solid #E2E8F0;border-top-color:#4A6CF7;
+           border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head><body>
+<div class="spinner"></div>
+<h2>Mise à jour en cours…</h2>
+<p>Suppression du cache et rechargement</p>
+<script>
+(async function(){
+  // 1. Désinstaller tous les service workers
+  if('serviceWorker' in navigator){
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+  }
+  // 2. Vider tous les caches
+  if('caches' in window){
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  }
+  // 3. Rediriger vers l'accueil en forçant le rechargement
+  window.location.replace('/?t=' + Date.now());
+})();
+</script>
+</body></html>"""
+    resp = app.make_response(html)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    return resp
 
 @app.route("/sw.js")
 def service_worker():
