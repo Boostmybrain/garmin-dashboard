@@ -50,7 +50,19 @@ async function _fcHandleApkg(input) {
       return;
     }
 
-    // Succès
+    // Succès ou 0 cartes
+    if(j.total_added === 0){
+      const dbg = j.debug || {};
+      wrap.innerHTML = `
+        <div style="padding:24px">
+          <h3 style="color:var(--red);margin-bottom:12px">⚠️ 0 cartes importées</h3>
+          <pre style="background:var(--surface2);padding:12px;border-radius:8px;font-size:11px;
+            overflow-x:auto;white-space:pre-wrap;line-height:1.6">${JSON.stringify(dbg,null,2)}</pre>
+          <button class="fc-btn fc-btn-secondary" style="margin-top:12px"
+            onclick="renderFlashcards()">Retour</button>
+        </div>`;
+      return;
+    }
     const lines = j.decks.map(d => `• ${d} — ${j.cards_per_deck[d]} carte${j.cards_per_deck[d]>1?'s':''}`).join('<br>');
     wrap.innerHTML = `
       <div style="text-align:center;padding:32px;display:flex;flex-direction:column;align-items:center;gap:14px">
