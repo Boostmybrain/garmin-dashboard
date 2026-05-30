@@ -6,3 +6,4 @@ gunicorn>=21.0
 rarfile>=4.0
 Pillow>=10.0
 garminconnect>=0.2.19
+zstandard>=0.21.0

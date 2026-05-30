@@ -148,7 +148,15 @@ async function _renderDeckList(wrap) {
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        Importer fichier .apkg
+        Import .apkg
+      </button>
+      <button class="fc-btn fc-btn-secondary" onclick="_fcOpenTextImport()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Import texte
       </button>
       <button class="fc-btn fc-btn-secondary" onclick="_fcOpenNewDeck()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -157,9 +165,28 @@ async function _renderDeckList(wrap) {
         Nouveau deck
       </button>
     </div>
-    <!-- Input fichier caché pour .apkg -->
-    <input type="file" id="fcApkgInput" accept=".apkg" style="display:none"
-           onchange="_fcHandleApkg(this)">
+    <!-- Inputs fichiers cachés -->
+    <input type="file" id="fcApkgInput" accept=".apkg" style="display:none" onchange="_fcHandleApkg(this)">
+    <!-- Modal import texte -->
+    <div id="fcTextImportModal" style="display:none;margin-bottom:16px">
+      <div class="fc-anki-info" style="margin-bottom:10px">
+        <p style="font-size:13px;color:var(--text2);margin:0;line-height:1.6">
+          Export depuis Anki desktop : <strong>Fichier → Exporter → Notes en texte brut (.txt)</strong><br>
+          Format accepté : une carte par ligne, <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">recto[TAB]verso</code>
+          ou <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">recto;verso</code>
+        </p>
+      </div>
+      <div class="fc-input-row" style="margin-bottom:8px">
+        <input id="fcTextDeckName" class="fc-input" placeholder="Nom du deck" value="Importé">
+      </div>
+      <textarea id="fcTextImportArea" class="fc-textarea" rows="6"
+        placeholder="Bonjour&#9;Hello&#10;Merci&#9;Thank you&#10;Chat&#9;Cat"></textarea>
+      <div class="fc-add-actions">
+        <button class="fc-btn fc-btn-primary" onclick="_fcSubmitTextImport()">Importer</button>
+        <button class="fc-btn fc-btn-ghost" onclick="document.getElementById('fcTextImportModal').style.display='none'">Annuler</button>
+      </div>
+      <div id="fcTextImportErr" style="color:var(--red);font-size:13px;margin-top:6px;display:none"></div>
+    </div>
 
     <!-- Formulaire nouveau deck (masqué) -->
     <div id="fcNewDeckForm" style="display:none;margin-bottom:16px">
@@ -212,6 +239,36 @@ async function _renderDeckList(wrap) {
   `;
 }
 
+
+// ══════════════════════════════════════════
+// IMPORT TEXTE (TSV / CSV)
+// ══════════════════════════════════════════
+function _fcOpenTextImport(){
+  const m = document.getElementById('fcTextImportModal');
+  if(m){ m.style.display = m.style.display==='none' ? 'block' : 'none'; }
+}
+
+async function _fcSubmitTextImport(){
+  const text     = document.getElementById('fcTextImportArea')?.value.trim();
+  const deckName = document.getElementById('fcTextDeckName')?.value.trim() || 'Importé';
+  const errEl    = document.getElementById('fcTextImportErr');
+  if(!text){ errEl.textContent='Collez du texte ci-dessus.'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+
+  try{
+    const r = await fetch('/api/flashcards/import-text',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, deck_name: deckName, separator:'auto'})
+    });
+    const j = await r.json();
+    if(!r.ok||j.error){ errEl.textContent='❌ '+j.error; errEl.style.display='block'; return; }
+    showToast(`${j.added} cartes importées dans «${j.deck}»`);
+    document.getElementById('fcTextImportModal').style.display='none';
+    await renderFlashcards();
+  }catch(e){
+    errEl.textContent='❌ Erreur serveur'; errEl.style.display='block';
+  }
+}
 
 // ══════════════════════════════════════════
 // MODE RÉVISION

@@ -1230,8 +1230,18 @@ def fc_import_apkg():
                     "files_found": names
                 }), 400
 
+            raw_data = z.read(db_name)
+            # Détecter et décompresser zstd (magic bytes: 0x28 0xB5 0x2F 0xFD)
+            if raw_data[:4] == b'\x28\xb5\x2f\xfd':
+                try:
+                    import zstandard as _zstd
+                    dctx = _zstd.ZstdDecompressor()
+                    raw_data = dctx.decompress(raw_data, max_output_size=200 * 1024 * 1024)
+                except Exception as e:
+                    return jsonify({"error": f"Décompression zstd échouée : {e}. Exportez en format texte (.txt) depuis Anki."}), 400
+
             db_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-            db_tmp.write(z.read(db_name))
+            db_tmp.write(raw_data)
             db_tmp.close()
 
         # Lire les notes depuis la base Anki
@@ -1377,6 +1387,63 @@ def fc_import_apkg():
         os.unlink(tmp.name)
         try: os.unlink(db_tmp.name)
         except: pass
+
+
+@app.route("/api/flashcards/import-text", methods=["POST"])
+def fc_import_text():
+    """Import cartes depuis texte brut (Anki export .txt, CSV, ou TSV).
+    Format accepté : une ligne par carte, champs séparés par tabulation ou point-virgule.
+    Première ligne peut être l'en-tête (ignorée si contient 'front'/'back'/'recto').
+    """
+    data    = request.get_json(force=True) or {}
+    text    = (data.get("text") or "").strip()
+    deck_name = (data.get("deck_name") or "Importé").strip()
+    separator = data.get("separator", "auto")  # 'tab', 'semicolon', 'auto'
+
+    if not text:
+        return jsonify({"error": "Aucun texte fourni"}), 400
+
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return jsonify({"error": "Fichier vide"}), 400
+
+    # Détecter le séparateur
+    if separator == "auto":
+        sep = "\t" if "\t" in lines[0] else ";"
+    else:
+        sep = "\t" if separator == "tab" else ";"
+
+    cards = []
+    for i, line in enumerate(lines):
+        if i == 0 and any(k in line.lower() for k in ("front", "back", "recto", "verso", "question", "réponse")):
+            continue  # ignorer l'en-tête
+        parts = line.split(sep)
+        if len(parts) < 2:
+            continue
+        front = _strip_html_anki(parts[0].strip())
+        back  = _strip_html_anki(parts[1].strip())
+        if front and back:
+            cards.append({"front": front, "back": back})
+
+    if not cards:
+        return jsonify({"error": "Aucune carte détectée. Vérifiez le format (tabulation ou ; entre recto et verso)"}), 400
+
+    today = _date.today().isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        existing = c.execute("SELECT id FROM fc_decks WHERE name=?", [deck_name]).fetchone()
+        if existing:
+            deck_id = existing[0]
+        else:
+            cur = c.execute("INSERT INTO fc_decks(name,created_at) VALUES(?,?)",
+                            [deck_name, datetime.now(timezone.utc).isoformat()])
+            deck_id = cur.lastrowid
+        count = 0
+        for card in cards:
+            c.execute("INSERT INTO fc_cards(deck_id,front,back,due_date) VALUES(?,?,?,?)",
+                      [deck_id, card["front"], card["back"], today])
+            count += 1
+
+    return jsonify({"ok": True, "added": count, "deck": deck_name})
 
 
 def _strip_html_anki(html: str) -> str:
