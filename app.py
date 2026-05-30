@@ -1246,7 +1246,8 @@ def fc_import_apkg():
 
             # Récupérer les notes (cards)
             notes = ac.execute(
-                "SELECT id, flds, tags, did FROM notes n "
+                "SELECT n.id, n.flds, n.tags, c.did "
+                "FROM notes n "
                 "LEFT JOIN cards c ON c.nid = n.id "
                 "GROUP BY n.id"
             ).fetchall()
