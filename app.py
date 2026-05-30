@@ -1218,13 +1218,17 @@ def fc_import_apkg():
     try:
         with zipfile.ZipFile(tmp.name) as z:
             names = z.namelist()
-            # Chercher la base SQLite (collection.anki2 ou collection.anki21)
+            # Chercher la base SQLite — priorité au format récent (anki21b > anki21 > anki2)
             db_name = next(
-                (n for n in names if n in ("collection.anki2", "collection.anki21")),
+                (n for n in ("collection.anki21b", "collection.anki21", "collection.anki2")
+                 if n in names),
                 None
             )
             if not db_name:
-                return jsonify({"error": "Fichier .apkg invalide (base de données introuvable)"}), 400
+                return jsonify({
+                    "error": "Base de données introuvable dans le .apkg",
+                    "files_found": names
+                }), 400
 
             db_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
             db_tmp.write(z.read(db_name))
@@ -1241,16 +1245,30 @@ def fc_import_apkg():
             ).fetchall()]
             debug_info['tables'] = tables
 
-            # Récupérer les noms de decks depuis col
+            debug_info['db_file_used'] = db_name
+
+            # Récupérer les noms de decks — essayer d'abord la table `decks` (Anki 2.1.45+)
             deck_map = {}
             try:
-                conf_row = ac.execute("SELECT decks FROM col").fetchone()
-                decks_json = json.loads(conf_row[0]) if conf_row else {}
-                deck_map = {str(v["id"]): v["name"] for v in decks_json.values()
-                            if isinstance(v, dict) and "id" in v and "name" in v}
-                debug_info['deck_map'] = deck_map
-            except Exception as e:
-                debug_info['deck_map_error'] = str(e)
+                # Nouveau schéma : table `decks` séparée
+                deck_rows = ac.execute("SELECT id, name FROM decks").fetchall()
+                deck_map = {str(r[0]): r[1] for r in deck_rows}
+                debug_info['deck_source'] = 'decks_table'
+            except Exception:
+                pass
+
+            if not deck_map:
+                try:
+                    # Ancien schéma : JSON dans col.decks
+                    conf_row = ac.execute("SELECT decks FROM col").fetchone()
+                    decks_json = json.loads(conf_row[0]) if conf_row else {}
+                    deck_map = {str(v["id"]): v["name"] for v in decks_json.values()
+                                if isinstance(v, dict) and "id" in v and "name" in v}
+                    debug_info['deck_source'] = 'col_json'
+                except Exception as e:
+                    debug_info['deck_map_error'] = str(e)
+
+            debug_info['deck_map'] = deck_map
 
             # Compter les notes
             note_count = ac.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
@@ -1279,6 +1297,10 @@ def fc_import_apkg():
             for row in ac.execute("SELECT id, flds FROM notes"):
                 note_id = row[0]
                 flds    = row[1]
+
+                # Ignorer la note factice insérée par les vieilles versions d'Anki
+                if "mettre à jour" in flds or "update" in flds.lower() or ".colpkg" in flds:
+                    continue
 
                 fields = flds.split("\x1f")
                 front = _strip_html_anki(fields[0]) if len(fields) > 0 else ""
