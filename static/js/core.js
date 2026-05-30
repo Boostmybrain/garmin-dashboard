@@ -12,7 +12,7 @@ let lastSleepRegularityScore=5;
 // ══════════════════════════════════════════
 // SWIPE MOBILE — navigation entre vues
 // ══════════════════════════════════════════
-const VIEWS_ORDER=['dashboard','sleep','sport','forme','nutrition','habitudes','planning'];
+const VIEWS_ORDER=['dashboard','sleep','sport','forme','nutrition','habitudes','flashcards','planning'];
 let _txStart=0,_tyStart=0;
 document.addEventListener('touchstart',e=>{_txStart=e.touches[0].clientX;_tyStart=e.touches[0].clientY;},{passive:true});
 document.addEventListener('touchend',e=>{
@@ -115,10 +115,11 @@ const VIEW_META={
   dashboard: {title:'Mon tableau de bord',  sub:'Sommeil · Sport · Stress · Activités'},
   sleep:     {title:'Sommeil',              sub:'Analyse détaillée de vos nuits'},
   sport:     {title:'Sport & Activités',    sub:'Toutes vos séances'},
-  forme:     {title:'Forme & Bien-être',    sub:'Pas quotidiens · Stress · Fréquence cardiaque'},
-  nutrition: {title:'Nutrition',            sub:'Analyse de vos repas par OpenAI Vision'},
-  habitudes: {title:'Habitudes',            sub:'Suivi quotidien de vos routines'},
-  planning:  {title:'Planning',             sub:'Programme de la semaine'},
+  forme:      {title:'Forme & Bien-être',    sub:'Pas quotidiens · Stress · Fréquence cardiaque'},
+  nutrition:  {title:'Nutrition',            sub:'Analyse de vos repas par OpenAI Vision'},
+  habitudes:  {title:'Habitudes',            sub:'Suivi quotidien de vos routines'},
+  flashcards: {title:'Flashcards',           sub:'Révision par répétition espacée (SM-2)'},
+  planning:   {title:'Planning',             sub:'Programme de la semaine'},
 };
 function showView(v){
   const viewEl=document.getElementById('view-'+v);
@@ -139,10 +140,15 @@ function showView(v){
 }
 
 function renderCurrent(){
-  // La vue Habitudes n'a pas besoin des données Garmin (localStorage uniquement)
+  // Les vues sans données Garmin (localStorage/API propre)
   if(curView==='habitudes'){
     _showNoData(false);
     try{renderHabitudes();}catch(err){console.error('[renderCurrent] habitudes:',err);}
+    return;
+  }
+  if(curView==='flashcards'){
+    _showNoData(false);
+    try{renderFlashcards();}catch(err){console.error('[renderCurrent] flashcards:',err);}
     return;
   }
   if(!appData){_showNoData(true);return;}

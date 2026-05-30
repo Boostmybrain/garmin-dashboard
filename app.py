@@ -108,6 +108,27 @@ def init_db():
             aliments    TEXT,
             image_file  TEXT
         )""")
+        # ── Flashcards ──
+        c.execute("""CREATE TABLE IF NOT EXISTS fc_decks(
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL UNIQUE,
+            created_at TEXT,
+            anki_name  TEXT
+        )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS fc_cards(
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            deck_id       INTEGER REFERENCES fc_decks(id) ON DELETE CASCADE,
+            front         TEXT NOT NULL,
+            back          TEXT NOT NULL,
+            anki_note_id  INTEGER,
+            interval      INTEGER DEFAULT 1,
+            ease_factor   REAL    DEFAULT 2.5,
+            repetitions   INTEGER DEFAULT 0,
+            due_date      TEXT    DEFAULT (date('now')),
+            last_reviewed TEXT,
+            total_reviews INTEGER DEFAULT 0,
+            correct_reviews INTEGER DEFAULT 0
+        )""")
 
 def save_to_db(data: dict):
     with sqlite3.connect(DATABASE) as c:
@@ -1173,6 +1194,191 @@ def api_sync_garmin():
 @app.route("/api/sync-garmin/status")
 def api_sync_garmin_status():
     return jsonify(_sync_state)
+
+
+# ──────────────────────────────────────────────
+# FLASHCARDS — SM-2 + ROUTES
+# ──────────────────────────────────────────────
+from datetime import date as _date, timedelta as _timedelta
+
+def _sm2(interval: int, ease: float, reps: int, quality: int):
+    """Algorithme SM-2 : retourne (interval, ease, reps, due_date)."""
+    if quality >= 3:
+        if reps == 0:   interval = 1
+        elif reps == 1: interval = 6
+        else:           interval = round(interval * ease)
+        reps += 1
+    else:
+        interval = 1
+        reps = 0
+    ease = max(1.3, ease + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+    due = (_date.today() + _timedelta(days=interval)).isoformat()
+    return interval, round(ease, 4), reps, due
+
+def _deck_stats(c, deck_id: int) -> dict:
+    total = c.execute("SELECT COUNT(*) FROM fc_cards WHERE deck_id=?", [deck_id]).fetchone()[0]
+    due   = c.execute(
+        "SELECT COUNT(*) FROM fc_cards WHERE deck_id=? AND due_date<=?",
+        [deck_id, _date.today().isoformat()]
+    ).fetchone()[0]
+    new   = c.execute(
+        "SELECT COUNT(*) FROM fc_cards WHERE deck_id=? AND total_reviews=0",
+        [deck_id]
+    ).fetchone()[0]
+    return {"total": total, "due": due, "new": new}
+
+
+@app.route("/api/flashcards/decks")
+def fc_get_decks():
+    with sqlite3.connect(DATABASE) as c:
+        c.row_factory = sqlite3.Row
+        decks = c.execute("SELECT * FROM fc_decks ORDER BY name").fetchall()
+        out = []
+        for d in decks:
+            s = _deck_stats(c, d["id"])
+            out.append({**dict(d), **s})
+    return jsonify({"ok": True, "decks": out})
+
+
+@app.route("/api/flashcards/decks", methods=["POST"])
+def fc_create_deck():
+    data = request.get_json(force=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Nom requis"}), 400
+    with sqlite3.connect(DATABASE) as c:
+        try:
+            cur = c.execute(
+                "INSERT INTO fc_decks(name, created_at, anki_name) VALUES(?,?,?)",
+                [name, datetime.now(timezone.utc).isoformat(), data.get("anki_name")]
+            )
+            deck_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return jsonify({"error": f"Le deck «{name}» existe déjà"}), 409
+    return jsonify({"ok": True, "id": deck_id, "name": name})
+
+
+@app.route("/api/flashcards/decks/<int:deck_id>", methods=["DELETE"])
+def fc_delete_deck(deck_id):
+    with sqlite3.connect(DATABASE) as c:
+        c.execute("DELETE FROM fc_cards WHERE deck_id=?", [deck_id])
+        c.execute("DELETE FROM fc_decks WHERE id=?", [deck_id])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/flashcards/decks/<int:deck_id>/cards")
+def fc_get_cards(deck_id):
+    due_only = request.args.get("due") == "1"
+    today    = _date.today().isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        c.row_factory = sqlite3.Row
+        if due_only:
+            cards = c.execute(
+                "SELECT * FROM fc_cards WHERE deck_id=? AND due_date<=? ORDER BY due_date",
+                [deck_id, today]
+            ).fetchall()
+        else:
+            cards = c.execute(
+                "SELECT * FROM fc_cards WHERE deck_id=? ORDER BY id", [deck_id]
+            ).fetchall()
+    return jsonify({"ok": True, "cards": [dict(r) for r in cards]})
+
+
+@app.route("/api/flashcards/decks/<int:deck_id>/cards", methods=["POST"])
+def fc_add_cards(deck_id):
+    data  = request.get_json(force=True) or {}
+    cards = data.get("cards", [])
+    if not cards:
+        return jsonify({"error": "Aucune carte"}), 400
+    today = _date.today().isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        # Vérifier que le deck existe
+        if not c.execute("SELECT id FROM fc_decks WHERE id=?", [deck_id]).fetchone():
+            return jsonify({"error": "Deck introuvable"}), 404
+        count = 0
+        for card in cards:
+            front = (card.get("front") or "").strip()
+            back  = (card.get("back")  or "").strip()
+            if not front or not back:
+                continue
+            anki_id = card.get("anki_note_id")
+            # Éviter les doublons si import Anki
+            if anki_id:
+                existing = c.execute(
+                    "SELECT id FROM fc_cards WHERE deck_id=? AND anki_note_id=?",
+                    [deck_id, anki_id]
+                ).fetchone()
+                if existing:
+                    # Mettre à jour le contenu si modifié dans Anki
+                    c.execute(
+                        "UPDATE fc_cards SET front=?, back=? WHERE id=?",
+                        [front, back, existing[0]]
+                    )
+                    continue
+            c.execute(
+                """INSERT INTO fc_cards(deck_id,front,back,anki_note_id,due_date)
+                   VALUES(?,?,?,?,?)""",
+                [deck_id, front, back, anki_id, today]
+            )
+            count += 1
+    return jsonify({"ok": True, "added": count})
+
+
+@app.route("/api/flashcards/cards/<int:card_id>/answer", methods=["POST"])
+def fc_answer_card(card_id):
+    """Enregistre la réponse et applique SM-2."""
+    data    = request.get_json(force=True) or {}
+    quality = int(data.get("quality", 3))   # 0-5
+    quality = max(0, min(5, quality))
+    with sqlite3.connect(DATABASE) as c:
+        c.row_factory = sqlite3.Row
+        card = c.execute("SELECT * FROM fc_cards WHERE id=?", [card_id]).fetchone()
+        if not card:
+            return jsonify({"error": "Carte introuvable"}), 404
+        card = dict(card)
+        new_int, new_ease, new_reps, new_due = _sm2(
+            card["interval"], card["ease_factor"], card["repetitions"], quality
+        )
+        correct = 1 if quality >= 3 else 0
+        c.execute("""UPDATE fc_cards SET
+            interval=?, ease_factor=?, repetitions=?, due_date=?,
+            last_reviewed=?, total_reviews=total_reviews+1,
+            correct_reviews=correct_reviews+?
+            WHERE id=?""",
+            [new_int, new_ease, new_reps, new_due,
+             datetime.now(timezone.utc).isoformat(), correct, card_id]
+        )
+    return jsonify({"ok": True, "next_due": new_due, "interval": new_int})
+
+
+@app.route("/api/flashcards/cards/<int:card_id>", methods=["DELETE"])
+def fc_delete_card(card_id):
+    with sqlite3.connect(DATABASE) as c:
+        c.execute("DELETE FROM fc_cards WHERE id=?", [card_id])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/flashcards/stats")
+def fc_stats():
+    """Stats globales : cartes dues, streak de révision."""
+    today = _date.today().isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        total_due = c.execute(
+            "SELECT COUNT(*) FROM fc_cards WHERE due_date<=?", [today]
+        ).fetchone()[0]
+        total_cards = c.execute("SELECT COUNT(*) FROM fc_cards").fetchone()[0]
+        total_decks = c.execute("SELECT COUNT(*) FROM fc_decks").fetchone()[0]
+        reviewed_today = c.execute(
+            "SELECT COUNT(*) FROM fc_cards WHERE last_reviewed LIKE ?",
+            [today + "%"]
+        ).fetchone()[0]
+    return jsonify({
+        "ok": True,
+        "total_due": total_due,
+        "total_cards": total_cards,
+        "total_decks": total_decks,
+        "reviewed_today": reviewed_today,
+    })
 
 
 if __name__ == "__main__":

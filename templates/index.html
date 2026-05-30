@@ -57,6 +57,9 @@
   <button class="nav-item" data-view="habitudes" aria-label="Habitudes" aria-current="false" onclick="showView('habitudes')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Habitudes
   </button>
+  <button class="nav-item" data-view="flashcards" aria-label="Flashcards" aria-current="false" onclick="showView('flashcards')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Flashcards
+  </button>
   <button class="nav-item" data-view="planning" aria-label="Planning" aria-current="false" onclick="showView('planning')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Planning
   </button>
@@ -820,6 +823,11 @@
 
     </div><!-- /view-nutrition -->
 
+    <!-- ══════════════ FLASHCARDS ══════════════ -->
+    <div class="view" id="view-flashcards">
+      <div id="fcWrap"></div>
+    </div><!-- /view-flashcards -->
+
     <!-- ══════════════ PLANNING ══════════════ -->
     <div class="view" id="view-planning">
       <!-- Header -->
@@ -920,6 +928,10 @@ Bloc A — 4 tours …"></textarea>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
     <span>Habitudes</span><div class="bnav-dot"></div>
   </button>
+  <button class="bnav-item" data-view="flashcards" aria-label="Flashcards" aria-current="false" onclick="showView('flashcards')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <span>Cartes</span><div class="bnav-dot"></div>
+  </button>
   <button class="bnav-item" data-view="planning" aria-label="Planning" aria-current="false" onclick="showView('planning')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     <span>Planning</span><div class="bnav-dot"></div>
@@ -960,6 +972,7 @@ Bloc A — 4 tours …"></textarea>
 <script src="{{ url_for('static', filename='js/views/planning.js') }}?v={{ js_v }}" defer></script>
 <script src="{{ url_for('static', filename='js/views/forme.js') }}?v={{ js_v }}" defer></script>
 <script src="{{ url_for('static', filename='js/views/habitudes.js') }}?v={{ js_v }}" defer></script>
+<script src="{{ url_for('static', filename='js/views/flashcards.js') }}?v={{ js_v }}" defer></script>
 <script src="{{ url_for('static', filename='js/main.js') }}?v={{ js_v }}" defer></script>
 </body>
 </html>

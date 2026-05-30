@@ -197,13 +197,16 @@
 }
 .bnav-item{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  flex:1;padding:5px 1px;border:none;background:none;
-  color:var(--text2);cursor:pointer;font-size:9px;font-weight:600;letter-spacing:.1px;
+  flex:1;padding:4px 1px;border:none;background:none;
+  color:var(--text2);cursor:pointer;font-weight:600;letter-spacing:.1px;
   border-radius:10px;transition:color .15s,background .15s;
   -webkit-tap-highlight-color:transparent;min-height:48px;
+  /* 8 items → icônes plus petites */
 }
-.bnav-item svg{width:18px;height:18px;flex-shrink:0;transition:transform .15s}
-.bnav-item span{font-size:8.5px;line-height:1}
+.bnav-item svg{width:17px;height:17px;flex-shrink:0;transition:transform .15s}
+.bnav-item span{font-size:7.5px;line-height:1}
+/* Sur très petit écran, masquer les labels texte */
+@media(max-width:390px){.bnav-item span{display:none}}
 .bnav-item.active{color:var(--blue)}
 .bnav-item.active svg{transform:scale(1.12)}
 .bnav-item:active{background:var(--surface2)}
