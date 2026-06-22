@@ -559,11 +559,22 @@ def _garmin_client():
 
 def _fetch_garmin_api(client, days=30):
     """Récupère wellness, sleep et activités depuis l'API Garmin Connect."""
+    import time as _time
     from datetime import timedelta, date as _date
     end_d   = _date.today()
     start_d = end_d - timedelta(days=days - 1)
 
     wellness_out, sleep_out = [], []
+    errors = []
+
+    def _ms_to_hhmm(ts):
+        if not ts: return ""
+        try:
+            if isinstance(ts, (int, float)) and ts > 1e10:
+                return datetime.fromtimestamp(ts / 1000).strftime("%H:%M")
+            return str(ts)[11:16]
+        except Exception:
+            return ""
 
     current = start_d
     while current <= end_d:
@@ -581,7 +592,7 @@ def _fetch_garmin_api(client, days=30):
                     "date":                ds,
                     "steps":               steps,
                     "calories":            round(s.get("totalKilocalories") or 0),
-                    "restingHR":           s.get("restingHeartRate"),   # FC repos Garmin
+                    "restingHR":           s.get("restingHeartRate"),
                     "minHR":               s.get("minHeartRate"),
                     "maxHR":               s.get("maxHeartRate"),
                     "stress":              s.get("averageStressLevel"),
@@ -591,8 +602,8 @@ def _fetch_garmin_api(client, days=30):
                     "bodyBattery":         int(bb) if bb else None,
                     "hrv":                 s.get("hrv5MinHigh") or s.get("lastNightHrvScore") or s.get("hrvScore"),
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"wellness {ds}: {e}")
 
         # ── Sommeil
         try:
@@ -603,18 +614,6 @@ def _fetch_garmin_api(client, days=30):
             rem   = dto.get("remSleepSeconds")   or 0
             awake = dto.get("awakeSleepSeconds") or 0
             if deep + light >= 3600:
-                def _ms_to_hhmm(ts):
-                    """Convert Garmin timestamp (ms int or ISO string) to HH:MM in local time."""
-                    if not ts: return ""
-                    try:
-                        if isinstance(ts, (int, float)) and ts > 1e10:
-                            # Use system local timezone so times match the user's clock
-                            return datetime.fromtimestamp(ts / 1000).strftime("%H:%M")
-                        return str(ts)[11:16]
-                    except Exception:
-                        return ""
-
-                # Prioritise local timestamps (user's timezone) over GMT
                 st = dto.get("sleepStartTimestampLocal") or dto.get("sleepStartTimestampGMT")
                 et = dto.get("sleepEndTimestampLocal")   or dto.get("sleepEndTimestampGMT")
                 inbed = 0
@@ -642,12 +641,13 @@ def _fetch_garmin_api(client, days=30):
                     "wakeTime":       _ms_to_hhmm(et),
                     "score":          score,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            errors.append(f"sleep {ds}: {e}")
 
         current += timedelta(days=1)
+        _time.sleep(0.4)  # évite le rate-limiting Garmin (429)
 
-    # ── Activités (fetch groupé)
+    # ── Activités (fetch groupé — un seul appel)
     activities_out = []
     try:
         acts = client.get_activities_by_date(
@@ -672,10 +672,10 @@ def _fetch_garmin_api(client, days=30):
                 })
             except Exception:
                 continue
-    except Exception:
-        pass
+    except Exception as e:
+        errors.append(f"activities: {e}")
 
-    return wellness_out, sleep_out, activities_out
+    return wellness_out, sleep_out, activities_out, errors
 
 
 # ──────────────────────────────────────────────
@@ -689,7 +689,7 @@ def _auto_sync_loop():
             if _GARMIN_AVAILABLE and GARMIN_TOKENS.exists():
                 gc = _GarminConnect("")
                 gc.garth.loads(GARMIN_TOKENS.read_text())
-                w, s, a = _fetch_garmin_api(gc, days=30)
+                w, s, a, _ = _fetch_garmin_api(gc, days=30)
                 data = load_from_db() or {}
                 if w:  data["wellness"]   = w
                 if s:  data["sleep"]      = s
@@ -764,6 +764,27 @@ def api_data():
     if data is None:
         return jsonify({"ok": False})
     return jsonify({"ok": True, "data": data})
+
+
+@app.route("/api/coach-data")
+def api_coach_data():
+    """Résumé compact des 30 derniers jours pour analyse coaching."""
+    from datetime import date as _date, timedelta
+    data = load_from_db()
+    if not data:
+        return jsonify({"ok": False})
+    cutoff = (_date.today() - timedelta(days=60)).isoformat()
+    wellness  = [w for w in data.get("wellness",  []) if w.get("date","") >= cutoff]
+    sleep     = [s for s in data.get("sleep",     []) if s.get("date","") >= cutoff]
+    activities= [a for a in data.get("activities",[]) if a.get("date","") >= cutoff]
+    return jsonify({
+        "ok": True,
+        "customer": data.get("customer", {}),
+        "wellness":   wellness,
+        "sleep":      sleep,
+        "activities": activities,
+        "generated":  _date.today().isoformat(),
+    })
 
 
 @app.route("/api/debug-hr")
@@ -1140,7 +1161,7 @@ def _run_sync_background(days):
     try:
         client = _garmin_client()
         _sync_state["progress"] = f"Récupération des données ({days} jours)…"
-        new_wellness, new_sleep, new_activities = _fetch_garmin_api(client, days)
+        new_wellness, new_sleep, new_activities, fetch_errors = _fetch_garmin_api(client, days)
 
         existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
         def _merge(old, new):
@@ -1153,18 +1174,26 @@ def _run_sync_background(days):
         merged = {
             "wellness":   _merge(existing.get("wellness",   []), new_wellness)[-365:],
             "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
-            "activities": _merge(existing.get("activities", []), new_activities)[:300],
+            "activities": _merge(existing.get("activities", []), new_activities)[-300:],
             "customer":   existing.get("customer", {}),
             "weight":     existing.get("weight", []),
         }
         save_to_db(merged)
+        warn = ""
+        if fetch_errors and not new_wellness:
+            first_err = fetch_errors[0] if fetch_errors else ""
+            if "429" in first_err or "rate" in first_err.lower():
+                warn = " (rate-limited par Garmin — réessayez dans quelques minutes)"
+            else:
+                warn = f" — attention : {len(fetch_errors)} erreurs API"
         _sync_state = {
             "status": "done",
-            "progress": "Synchronisation terminée",
+            "progress": f"Synchronisation terminée{warn}",
             "result": {
                 "ok": True,
                 "data": merged,
-                "synced": {"wellness": len(new_wellness), "sleep": len(new_sleep), "activities": len(new_activities)}
+                "synced": {"wellness": len(new_wellness), "sleep": len(new_sleep), "activities": len(new_activities)},
+                "errors": fetch_errors[:5],
             }
         }
     except Exception as e:

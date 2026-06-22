@@ -15,7 +15,7 @@ function renderPaceChart(A){
     return +(sl.reduce((s,v)=>s+v,0)/sl.length).toFixed(2);
   });
   const last=paces[paces.length-1];
-  const pFmt=v=>`${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"`;
+  const pFmt=v=>{const s=Math.round((v%1)*60);return s===60?`${Math.floor(v)+1}'00"`:`${Math.floor(v)}'${String(s).padStart(2,'0')}"`};
   document.getElementById('paceBadge').textContent=pFmt(last)+'/km';
   const all=[...paces,...smoothed];
   const yMin=+(Math.min(...all)-0.5).toFixed(1);
@@ -44,7 +44,7 @@ function renderPRCards(A){
   const runs=A.filter(a=>a.type==='running'&&a.distance_km>0&&a.duration_min>0);
   if(!runs.length){panel.style.display='none';return;}
   const targets=[{dist:5,label:'5 km'},{dist:10,label:'10 km'},{dist:21.0975,label:'Semi-marathon'}];
-  const pFmt=v=>`${Math.floor(v)}'${String(Math.round((v%1)*60)).padStart(2,'0')}"`;
+  const pFmt=v=>{const s=Math.round((v%1)*60);return s===60?`${Math.floor(v)+1}'00"`:`${Math.floor(v)}'${String(s).padStart(2,'0')}"`};
   const tFmt=min=>{const h=Math.floor(min/60),m=Math.floor(min%60),s=Math.round((min*60)%60);return h>0?`${h}h${String(m).padStart(2,'0')}'${String(s).padStart(2,'0')}"`:`${m}'${String(s).padStart(2,'0')}"`; };
   const cards=targets.map(t=>{
     const matching=runs.filter(r=>r.distance_km>=t.dist*0.7&&r.distance_km<=t.dist*1.3);

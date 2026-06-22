@@ -398,9 +398,21 @@ async function _pollSync(btn, label, origLabel, attempts=0){
       appData = s.result.data;
       localStorage.setItem(LS_KEY, JSON.stringify({ts: Date.now(), data: appData}));
       renderCurrent();
-      const {wellness=0} = s.result.synced || {};
-      label.textContent = `✓ ${wellness}j synchro`;
-      setTimeout(()=>_syncReset(btn, label, origLabel), 4000);
+      const {wellness=0, activities=0} = s.result.synced || {};
+      const errors = s.result.errors || [];
+      if(wellness === 0 && errors.length > 0){
+        const firstErr = errors[0] || '';
+        if(firstErr.includes('429') || firstErr.toLowerCase().includes('rate')){
+          label.textContent = '⚠️ Rate-limited';
+          alert('Garmin bloque les requêtes (rate limiting).\nRéessayez dans 5-10 minutes.');
+        } else {
+          label.textContent = '⚠️ 0j récupérés';
+          alert('Sync terminé mais aucune donnée récupérée.\nErreur : ' + firstErr);
+        }
+      } else {
+        label.textContent = `✓ ${wellness}j · ${activities} activités`;
+      }
+      setTimeout(()=>_syncReset(btn, label, origLabel), 5000);
     } else if(s.status === 'error'){
       alert('❌ ' + (s.progress || 'Erreur sync'));
       _syncReset(btn, label, origLabel);
