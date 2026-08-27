@@ -3,25 +3,73 @@
 const HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano'];
 const LS_HABITS   = 'garmin_habits_v1';
 let _habitPeriod  = 7;
+let _habitsCache  = null; // cache local pour éviter des rechargements inutiles
 
-function _getHabits(){
-  try{ return JSON.parse(localStorage.getItem(LS_HABITS)||'{}'); }catch{ return {}; }
+// ── Accès données : API Railway (source de vérité) + localStorage fallback ──
+async function _loadHabits() {
+  try {
+    const res  = await fetch(`/api/habits?days=${_habitPeriod + 1}`);
+    const json = await res.json();
+    if (json.ok) {
+      _habitsCache = json.habits;
+      // Sync vers localStorage pour fallback offline
+      localStorage.setItem(LS_HABITS, JSON.stringify(_habitsCache));
+      return _habitsCache;
+    }
+  } catch(e) {}
+  // Fallback localStorage
+  try { _habitsCache = JSON.parse(localStorage.getItem(LS_HABITS)||'{}'); }
+  catch { _habitsCache = {}; }
+  return _habitsCache;
 }
-function _saveHabits(d){ localStorage.setItem(LS_HABITS, JSON.stringify(d)); }
 
-function toggleHabit(dateStr, habit){
-  const data = _getHabits();
-  if(!data[dateStr]) data[dateStr] = {};
-  data[dateStr][habit] = !data[dateStr][habit];
-  if(!data[dateStr][habit])      delete data[dateStr][habit];
-  if(!Object.keys(data[dateStr]).length) delete data[dateStr];
-  _saveHabits(data);
-  renderHabitudes();
+function _getHabitsCache() {
+  if (_habitsCache) return _habitsCache;
+  try { return JSON.parse(localStorage.getItem(LS_HABITS)||'{}'); } catch { return {}; }
+}
+
+async function toggleHabit(dateStr, habit) {
+  // Optimistic update : màj cache local immédiatement
+  const data = _getHabitsCache();
+  if (!data[dateStr]) data[dateStr] = {};
+  const wasDone = !!(data[dateStr][habit]);
+  if (wasDone) { delete data[dateStr][habit]; }
+  else         { data[dateStr][habit] = true;  }
+  if (!Object.keys(data[dateStr]).length) delete data[dateStr];
+  _habitsCache = data;
+  localStorage.setItem(LS_HABITS, JSON.stringify(data));
+  renderHabitudes(); // affichage immédiat
+
+  // Appel API en arrière-plan
+  try {
+    const res  = await fetch('/api/habits/toggle', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ date: dateStr, habit })
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      // Rollback si erreur serveur
+      if (wasDone) { if(!data[dateStr]) data[dateStr]={}; data[dateStr][habit]=true; }
+      else if (data[dateStr]) { delete data[dateStr][habit]; }
+      _habitsCache = data;
+      localStorage.setItem(LS_HABITS, JSON.stringify(data));
+      renderHabitudes();
+    }
+  } catch(e) {
+    // Pas de rollback si offline : on garde l'état local et on resynchro au prochain load
+  }
 }
 
 function setHabitPeriod(n){
   _habitPeriod = n;
+  _habitsCache = null; // force rechargement
   document.querySelectorAll('.habit-period-btn').forEach(b=>b.classList.toggle('active', +b.dataset.period===n));
+  loadAndRenderHabitudes();
+}
+
+async function loadAndRenderHabitudes() {
+  await _loadHabits();
   renderHabitudes();
 }
 
@@ -29,7 +77,7 @@ function renderHabitudes(){
   const wrap = document.getElementById('habitGridWrap');
   if(!wrap) return;
 
-  const data    = _getHabits();
+  const data    = _getHabitsCache();
   const today   = new Date(); today.setHours(0,0,0,0);
   const todayStr= today.toISOString().slice(0,10);
 

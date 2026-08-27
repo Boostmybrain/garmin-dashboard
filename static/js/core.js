@@ -143,7 +143,7 @@ function renderCurrent(){
   // Les vues sans données Garmin (localStorage/API propre)
   if(curView==='habitudes'){
     _showNoData(false);
-    try{renderHabitudes();}catch(err){console.error('[renderCurrent] habitudes:',err);}
+    try{loadAndRenderHabitudes();}catch(err){console.error('[renderCurrent] habitudes:',err);}
     return;
   }
   if(curView==='flashcards'){

@@ -129,6 +129,11 @@ def init_db():
             total_reviews INTEGER DEFAULT 0,
             correct_reviews INTEGER DEFAULT 0
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS habits(
+            date  TEXT NOT NULL,
+            habit TEXT NOT NULL,
+            PRIMARY KEY (date, habit)
+        )""")
 
 def save_to_db(data: dict):
     with sqlite3.connect(DATABASE) as c:
@@ -785,6 +790,48 @@ def api_coach_data():
         "activities": activities,
         "generated":  _date.today().isoformat(),
     })
+
+
+HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano']
+
+@app.route("/api/habits")
+def api_habits_get():
+    """Retourne les habitudes cochées pour une plage de dates."""
+    from datetime import date as _date, timedelta
+    days = int(request.args.get("days", 30))
+    cutoff = (_date.today() - timedelta(days=days - 1)).isoformat()
+    with sqlite3.connect(DATABASE) as c:
+        rows = c.execute(
+            "SELECT date, habit FROM habits WHERE date >= ? ORDER BY date",
+            [cutoff]
+        ).fetchall()
+    result = {}
+    for date, habit in rows:
+        if date not in result:
+            result[date] = {}
+        result[date][habit] = True
+    return jsonify({"ok": True, "habits": result})
+
+
+@app.route("/api/habits/toggle", methods=["POST"])
+def api_habits_toggle():
+    """Coche ou décoche une habitude pour une date donnée."""
+    body  = request.get_json(force=True)
+    date  = body.get("date")
+    habit = body.get("habit")
+    if not date or not habit or habit not in HABITS_LIST:
+        return jsonify({"ok": False, "error": "Paramètres invalides"}), 400
+    with sqlite3.connect(DATABASE) as c:
+        existing = c.execute(
+            "SELECT 1 FROM habits WHERE date=? AND habit=?", [date, habit]
+        ).fetchone()
+        if existing:
+            c.execute("DELETE FROM habits WHERE date=? AND habit=?", [date, habit])
+            done = False
+        else:
+            c.execute("INSERT INTO habits(date, habit) VALUES(?,?)", [date, habit])
+            done = True
+    return jsonify({"ok": True, "date": date, "habit": habit, "done": done})
 
 
 @app.route("/api/debug-hr")
