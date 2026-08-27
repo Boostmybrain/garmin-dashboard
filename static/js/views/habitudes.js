@@ -8,7 +8,7 @@ let _habitsCache  = null; // cache local pour éviter des rechargements inutiles
 // ── Accès données : API Railway (source de vérité) + localStorage fallback ──
 async function _loadHabits() {
   try {
-    const res  = await fetch(`/api/habits?days=${_habitPeriod + 1}`);
+    const res  = await fetch(`/api/habits?days=${_habitPeriod + 1}`, { cache: 'no-store' });
     const json = await res.json();
     if (json.ok) {
       _habitsCache = json.habits;
@@ -164,3 +164,15 @@ function renderHabitudes(){
     if(todayBtn) todayBtn.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
   });
 }
+
+// ── Auto-refresh : resynchro depuis l'API (ex: coche faite depuis le widget Android) ──
+function _habitsViewVisible(){
+  return !!document.getElementById('habitGridWrap');
+}
+// Au retour sur l'onglet/la fenêtre
+window.addEventListener('focus', ()=>{ if(_habitsViewVisible()) loadAndRenderHabitudes(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && _habitsViewVisible()) loadAndRenderHabitudes();
+});
+// Polling léger toutes les 60s tant que la vue Habitudes est affichée
+setInterval(()=>{ if(!document.hidden && _habitsViewVisible()) loadAndRenderHabitudes(); }, 60_000);
