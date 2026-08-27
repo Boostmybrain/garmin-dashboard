@@ -55,24 +55,26 @@ def _file_hash(path):
         return '0'
 
 def _dir_hash(directory):
-    """Hash combiné de tous les .js du dossier — change dès qu'un fichier est modifié."""
+    """Hash combiné du CONTENU des fichiers du dossier — change dès qu'un fichier est modifié.
+    (Ne PAS utiliser les mtimes : Docker peut les normaliser entre deux builds.)"""
     import glob as _glob
     h = hashlib.md5()
-    for path in sorted(_glob.glob(os.path.join(directory, '**', '*.js'), recursive=True)):
+    for path in sorted(_glob.glob(os.path.join(directory, '**', '*.*'), recursive=True)):
         try:
-            h.update(str(os.path.getmtime(path)).encode())
-            h.update(path.encode())
+            with open(path, 'rb') as f:
+                h.update(f.read())
         except Exception:
             pass
     return h.hexdigest()[:8]
 
+# Calculé une seule fois au démarrage (les fichiers ne changent pas en cours d'exécution)
+_STATIC_BASE = os.path.dirname(os.path.abspath(__file__))
+_CSS_V = _dir_hash(os.path.join(_STATIC_BASE, 'static', 'css'))
+_JS_V  = _dir_hash(os.path.join(_STATIC_BASE, 'static', 'js'))
+
 @app.context_processor
 def inject_static_version():
-    base = os.path.dirname(os.path.abspath(__file__))
-    return {
-        'css_v': _dir_hash(os.path.join(base, 'static', 'css')),
-        'js_v':  _dir_hash(os.path.join(base, 'static', 'js')),
-    }
+    return {'css_v': _CSS_V, 'js_v': _JS_V}
 
 # DATA_DIR : répertoire persistant (volume Railway) ou local par défaut
 DATA_DIR       = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
