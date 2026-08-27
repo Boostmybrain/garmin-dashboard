@@ -79,13 +79,13 @@ function renderHabitudes(){
 
   const data    = _getHabitsCache();
   const today   = new Date(); today.setHours(0,0,0,0);
-  const todayStr= today.toISOString().slice(0,10);
+  const todayStr= localISO(today);
 
   // Générer tableau de dates (du plus ancien au plus récent)
   const dates = [];
   for(let i=_habitPeriod-1; i>=0; i--){
     const d = new Date(today); d.setDate(today.getDate()-i);
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(localISO(d));
   }
 
   // ── Stats globales ──

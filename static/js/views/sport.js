@@ -67,7 +67,7 @@ function renderSport(){
   // Stats filtrées sur la période sélectionnée (curPeriod jours)
   const cutoff=new Date();
   cutoff.setDate(cutoff.getDate()-curPeriod);
-  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const cutoffStr=localISO(cutoff);
   const Ap=A.filter(a=>a.date>=cutoffStr);
 
   const runs    =Ap.filter(a=>a.type==='running');
@@ -129,7 +129,7 @@ function renderVo2maxChart(A,cutoffStr){
     const reg=linReg(xs,vals);
     const lastIdx=display.length-1;
     // 3 points futurs espacés de 30j
-    const futureLabels=[30,60,90].map(d=>{const dt=new Date(display[lastIdx].date);dt.setDate(dt.getDate()+d);return fmtDate(dt.toISOString().slice(0,10));});
+    const futureLabels=[30,60,90].map(d=>{const dt=new Date(display[lastIdx].date);dt.setDate(dt.getDate()+d);return fmtDate(localISO(dt));});
     // Valeurs projetées (continuation de la tendance)
     const step=30/(display.length>1?(new Date(display[lastIdx].date)-new Date(display[0].date))/(display.length-1)/86400000:1);
     const futureVals=[1,2,3].map(k=>+(reg.slope*(lastIdx+k*step)+reg.intercept).toFixed(1));

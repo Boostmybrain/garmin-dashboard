@@ -199,7 +199,7 @@ function renderSleepCorrelation(S,W){
   const pts=[];
   S.forEach(s=>{
     const nextDate=new Date(s.date);nextDate.setDate(nextDate.getDate()+1);
-    const nd=nextDate.toISOString().slice(0,10);
+    const nd=localISO(nextDate);
     const w=wMap[nd];
     if(!w)return;
     // Body Battery prioritaire, sinon stress inversé (100-stress) comme proxy de forme

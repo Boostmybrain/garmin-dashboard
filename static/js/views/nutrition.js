@@ -327,7 +327,7 @@ async function renderNutritionView(){
 }
 
 async function loadNutritionHistory(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=localISO(new Date());
   try{
     const r=await fetch(`/api/meals?date=${today}`);
     const j=await r.json();

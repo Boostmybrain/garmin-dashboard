@@ -94,7 +94,7 @@ function renderTrainingLoad(A){
   });
   // Generate date range: last 90 days
   const dates=[];
-  for(let i=89;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d.toISOString().slice(0,10));}
+  for(let i=89;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(localISO(d));}
   // Exponential moving averages
   const k_ctl=1-Math.exp(-1/42),k_atl=1-Math.exp(-1/7);
   let ctl=0,atl=0;

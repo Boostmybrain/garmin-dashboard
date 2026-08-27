@@ -33,6 +33,8 @@ function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return
 // ══════════════════════════════════════════
 // FORMATTERS
 // ══════════════════════════════════════════
+// Date locale au format YYYY-MM-DD (PAS toISOString qui convertit en UTC et decale d'un jour)
+const localISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const fmt=m=>m==null?'—':`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
 // Convertit des heures décimales (ex: 1.75) en "1h45"
 const fmtH=h=>{const m=Math.round(h*60);return`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`};

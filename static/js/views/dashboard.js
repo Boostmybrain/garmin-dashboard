@@ -24,7 +24,7 @@ function renderRunChart(id,A){
     const dow=d.getDay();
     const mon=new Date(d);
     mon.setDate(d.getDate()-(dow===0?6:dow-1));
-    const wk=mon.toISOString().slice(0,10);
+    const wk=localISO(mon);
     if(!weekRuns[wk])weekRuns[wk]=[];
     weekRuns[wk].push(+(a.distance_km.toFixed(1)));
   });
@@ -172,7 +172,7 @@ function renderHeatmap(W){
     for(let dy=0;dy<7;dy++){
       const d=new Date(start);d.setDate(start.getDate()+wk*7+dy);
       if(d>today)continue;
-      const key=d.toISOString().slice(0,10);
+      const key=localISO(d);
       const steps=stepsMap[key]||0;
       const x=wk*step, y=dy*step;
       svg+=`<rect x="${x}" y="${y}" width="${cs}" height="${cs}" rx="2" fill="${hmColor(steps)}"><title>${key} — ${steps.toLocaleString('fr-FR')} pas</title></rect>`;
@@ -259,7 +259,7 @@ function renderDaySummary(W,S,A){
   let ctl=0,atl=0;
   for(let i=89;i>=0;i--){
     const d=new Date();d.setDate(d.getDate()-i);
-    const ds=d.toISOString().slice(0,10);
+    const ds=localISO(d);
     const tss=tssMap[ds]||0;
     ctl+=k_ctl*(tss-ctl);atl+=k_atl*(tss-atl);
   }
@@ -376,7 +376,7 @@ function renderWeeklyReport(W,S,A){
   thisMonday.setHours(0,0,0,0);
   const lastMonday=new Date(thisMonday);lastMonday.setDate(thisMonday.getDate()-7);
 
-  const inRange=(arr,from,to)=>arr.filter(d=>d.date>=from.toISOString().slice(0,10)&&d.date<to.toISOString().slice(0,10));
+  const inRange=(arr,from,to)=>arr.filter(d=>d.date>=localISO(from)&&d.date<localISO(to));
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0;};
 
   const thisW=inRange(W,thisMonday,new Date(thisMonday.getTime()+7*86400000));
