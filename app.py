@@ -39,6 +39,14 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 
+# Le HTML ne doit jamais etre mis en cache (les JS/CSS sont versionnes via ?v=hash)
+@app.after_request
+def _no_html_cache(resp):
+    if resp.mimetype == "text/html":
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
 def _file_hash(path):
     try:
         with open(path, 'rb') as f:
