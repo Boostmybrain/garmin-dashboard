@@ -45,7 +45,7 @@ async function toggleHabit(dateStr, habit) {
     const res  = await fetch('/api/habits/toggle', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ date: dateStr, habit })
+      body:    JSON.stringify({ date: dateStr, habit, done: !wasDone })
     });
     const json = await res.json();
     if (!json.ok) {
@@ -95,11 +95,14 @@ function renderHabitudes(){
   const pct      = totalPossible ? Math.round(totalDone / totalPossible * 100) : 0;
   const todayDone= HABITS_LIST.filter(h => data[todayStr]?.[h]).length;
 
-  // Streak : nb de jours consécutifs avec ≥1 habitude
+  // Streak : nb de jours consécutifs avec ≥1 habitude.
+  // Aujourd'hui vide ne casse PAS le streak (la journée n'est pas finie).
   let streak = 0;
   for(let i=dates.length-1; i>=0; i--){
     const d = dates[i];
-    if(HABITS_LIST.some(h => data[d]?.[h])){ streak++; } else break;
+    if(HABITS_LIST.some(h => data[d]?.[h])){ streak++; }
+    else if(d === todayStr){ continue; }
+    else break;
   }
 
   // Mettre à jour les stat-cards

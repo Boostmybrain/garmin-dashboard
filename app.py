@@ -2,7 +2,7 @@
 Garmin Dashboard – Backend Flask
 Lancer : python app.py  →  http://localhost:5000
 """
-import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid, threading, hashlib
+import os, json, zipfile, tempfile, subprocess, sqlite3, re, base64, uuid, threading, hashlib, time
 from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -826,21 +826,27 @@ def api_habits_get():
 @app.route("/api/habits/toggle", methods=["POST"])
 def api_habits_toggle():
     """Coche ou décoche une habitude pour une date donnée."""
-    body  = request.get_json(force=True)
-    date  = body.get("date")
-    habit = body.get("habit")
+    body    = request.get_json(force=True)
+    date    = body.get("date")
+    habit   = body.get("habit")
+    desired = body.get("done")  # bool optionnel : état désiré (idempotent) ; absent = flip legacy
     if not date or not habit or habit not in HABITS_LIST:
         return jsonify({"ok": False, "error": "Paramètres invalides"}), 400
     with sqlite3.connect(DATABASE) as c:
-        existing = c.execute(
-            "SELECT 1 FROM habits WHERE date=? AND habit=?", [date, habit]
-        ).fetchone()
-        if existing:
+        if desired is True:
+            c.execute("INSERT OR IGNORE INTO habits(date, habit) VALUES(?,?)", [date, habit])
+            done = True
+        elif desired is False:
             c.execute("DELETE FROM habits WHERE date=? AND habit=?", [date, habit])
             done = False
         else:
-            c.execute("INSERT INTO habits(date, habit) VALUES(?,?)", [date, habit])
-            done = True
+            # Flip legacy, sans fenêtre de course : DELETE d'abord, INSERT si rien supprimé
+            cur = c.execute("DELETE FROM habits WHERE date=? AND habit=?", [date, habit])
+            if cur.rowcount == 0:
+                c.execute("INSERT OR IGNORE INTO habits(date, habit) VALUES(?,?)", [date, habit])
+                done = True
+            else:
+                done = False
     return jsonify({"ok": True, "date": date, "habit": habit, "done": done})
 
 
@@ -1209,15 +1215,33 @@ def api_garmin_status():
     return jsonify({"configured": configured, "available": _GARMIN_AVAILABLE})
 
 
-# État du sync en arrière-plan
-_sync_state = {"status": "idle", "progress": "", "result": None}
+# État du sync en arrière-plan — persisté sur disque pour être partagé
+# entre les workers gunicorn (l'état en mémoire n'existe que dans UN worker).
+_SYNC_STATE_FILE = DATA_DIR / "sync_state.json"
+
+def _read_sync_state():
+    try:
+        with open(_SYNC_STATE_FILE, encoding="utf-8") as f:
+            state = json.load(f)
+        # Un "running" vieux de +10 min = worker crashé → considéré comme périmé
+        if state.get("status") == "running" and time.time() - state.get("ts", 0) > 600:
+            state = {"status": "error", "progress": "Sync interrompue (timeout)", "result": None}
+        return state
+    except Exception:
+        return {"status": "idle", "progress": "", "result": None}
+
+def _write_sync_state(state):
+    state["ts"] = time.time()
+    tmp = str(_SYNC_STATE_FILE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(state, f)
+    os.replace(tmp, _SYNC_STATE_FILE)
 
 def _run_sync_background(days):
-    global _sync_state
-    _sync_state = {"status": "running", "progress": "Connexion à Garmin Connect…", "result": None}
+    _write_sync_state({"status": "running", "progress": "Connexion à Garmin Connect…", "result": None})
     try:
         client = _garmin_client()
-        _sync_state["progress"] = f"Récupération des données ({days} jours)…"
+        _write_sync_state({"status": "running", "progress": f"Récupération des données ({days} jours)…", "result": None})
         new_wellness, new_sleep, new_activities, fetch_errors = _fetch_garmin_api(client, days)
 
         existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
@@ -1243,7 +1267,7 @@ def _run_sync_background(days):
                 warn = " (rate-limited par Garmin — réessayez dans quelques minutes)"
             else:
                 warn = f" — attention : {len(fetch_errors)} erreurs API"
-        _sync_state = {
+        _write_sync_state({
             "status": "done",
             "progress": f"Synchronisation terminée{warn}",
             "result": {
@@ -1252,12 +1276,12 @@ def _run_sync_background(days):
                 "synced": {"wellness": len(new_wellness), "sleep": len(new_sleep), "activities": len(new_activities)},
                 "errors": fetch_errors[:5],
             }
-        }
+        })
     except Exception as e:
         msg = str(e)
         if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
             msg = "2FA requise : désactivez-la sur connect.garmin.com"
-        _sync_state = {"status": "error", "progress": msg, "result": None}
+        _write_sync_state({"status": "error", "progress": msg, "result": None})
 
 
 @app.route("/api/sync-garmin", methods=["POST"])
@@ -1268,10 +1292,14 @@ def api_sync_garmin():
     body = request.get_json(silent=True) or {}
     days = max(1, min(int(body.get("days", 30)), 90))
 
-    # Si un sync tourne déjà, ne pas en lancer un deuxième
-    if _sync_state.get("status") == "running":
-        return jsonify({"ok": True, "status": "running", "progress": _sync_state.get("progress", "")})
+    # Si un sync tourne déjà (dans n'importe quel worker), ne pas en lancer un deuxième
+    state = _read_sync_state()
+    if state.get("status") == "running":
+        return jsonify({"ok": True, "status": "running", "progress": state.get("progress", "")})
 
+    # Écrit l'état AVANT de démarrer le thread : le premier poll (peut-être servi
+    # par un autre worker) voit déjà "running"
+    _write_sync_state({"status": "running", "progress": "Démarrage…", "result": None})
     t = threading.Thread(target=_run_sync_background, args=(days,), daemon=True)
     t.start()
     return jsonify({"ok": True, "status": "started", "progress": "Démarrage…"})
@@ -1279,7 +1307,9 @@ def api_sync_garmin():
 
 @app.route("/api/sync-garmin/status")
 def api_sync_garmin_status():
-    return jsonify(_sync_state)
+    state = _read_sync_state()
+    state.pop("ts", None)
+    return jsonify(state)
 
 
 # ──────────────────────────────────────────────
