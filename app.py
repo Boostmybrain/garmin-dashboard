@@ -1212,7 +1212,17 @@ def api_delete_meal(meal_id):
 @app.route("/api/garmin-status")
 def api_garmin_status():
     configured = bool(os.environ.get("GARMIN_EMAIL") and os.environ.get("GARMIN_PASSWORD"))
-    return jsonify({"configured": configured, "available": _GARMIN_AVAILABLE})
+    # Présence des tokens OAuth (jamais leur contenu) — utile au diagnostic
+    try:
+        token_files = sorted(p.name for p in GARMIN_TOKENS.iterdir()) if GARMIN_TOKENS.is_dir() else []
+    except Exception:
+        token_files = []
+    return jsonify({
+        "configured": configured,
+        "available": _GARMIN_AVAILABLE,
+        "tokens": token_files,
+        "has_tokens": bool(token_files),
+    })
 
 
 # État du sync en arrière-plan — persisté sur disque pour être partagé
@@ -1278,10 +1288,12 @@ def _run_sync_background(days):
             }
         })
     except Exception as e:
+        raw = f"{type(e).__name__}: {e}"
         msg = str(e)
         if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
-            msg = "2FA requise : désactivez-la sur connect.garmin.com"
-        _write_sync_state({"status": "error", "progress": msg, "result": None})
+            msg = ("Garmin demande une validation (MFA). Génère les tokens depuis ton PC "
+                   "puis envoie-les au serveur — voir outils/garmin_login.py")
+        _write_sync_state({"status": "error", "progress": msg, "raw_error": raw, "result": None})
 
 
 @app.route("/api/sync-garmin", methods=["POST"])
