@@ -16,6 +16,7 @@ Rien n'est ecrit en clair sur le disque, rien n'est affiche a l'ecran.
 import getpass
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -47,10 +48,15 @@ def _get_secret():
         print("Secret d'envoi : pris dans la variable d'environnement.")
         return secret
 
-    # Confort : le lire directement depuis Railway si le CLI est connecte
+    # Confort : le lire directement depuis Railway si le CLI est connecte.
+    # which() applique PATHEXT sous Windows (railway.cmd), contrairement
+    # a un simple subprocess.run(["railway", ...]).
     try:
+        railway_exe = shutil.which("railway")
+        if not railway_exe:
+            raise FileNotFoundError
         out = subprocess.run(
-            ["railway", "variables", "--json"],
+            [railway_exe, "variables", "--json"],
             cwd=str(PROJECT_DIR), capture_output=True, text=True, timeout=60,
         )
         if out.returncode == 0:
