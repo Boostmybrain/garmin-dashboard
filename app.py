@@ -549,6 +549,48 @@ def api_update_training_order():
 # ──────────────────────────────────────────────
 # GARMIN CONNECT API — SYNC
 # ──────────────────────────────────────────────
+_LOGIN_COOLDOWN_FILE = DATA_DIR / "garmin_login_cooldown"
+
+def _login_cooldown_remaining():
+    """Secondes restantes avant d'autoriser un nouveau login par mot de passe."""
+    try:
+        until = float(_LOGIN_COOLDOWN_FILE.read_text().strip())
+        return max(0.0, until - time.time())
+    except Exception:
+        return 0.0
+
+def _set_login_cooldown(seconds):
+    try:
+        _LOGIN_COOLDOWN_FILE.write_text(str(time.time() + seconds))
+    except Exception:
+        pass
+
+
+def _classify_garmin_error(e):
+    """Message clair à partir d'une exception Garmin.
+
+    L'ordre compte : l'URL d'auth de Garmin contient littéralement
+    'accepts-mfa-tokens=true', donc un simple test sur 'mfa' classait
+    à tort les erreurs 429 en « 2FA requise ».
+    """
+    raw  = f"{type(e).__name__}: {e}"
+    low  = raw.lower()
+    name = type(e).__name__.lower()
+
+    if "toomanyrequests" in name or "429" in raw or "rate limit" in low:
+        msg = ("Garmin limite les connexions (429). C'est temporaire : attends 1 à 2 h. "
+               "Pour supprimer le problème durablement, génère les tokens depuis ton PC "
+               "(python outils/garmin_login.py).")
+    elif "mfa" in name or "mfa required" in low or "multi-factor" in low or "2fa" in low:
+        msg = ("Garmin demande une validation MFA. Génère les tokens depuis ton PC "
+               "(python outils/garmin_login.py) : tu saisiras le code toi-même.")
+    elif "authentication" in name or "invalid" in low and "credential" in low:
+        msg = "Identifiants Garmin refusés — vérifie GARMIN_EMAIL / GARMIN_PASSWORD dans Railway."
+    else:
+        msg = raw
+    return {"progress": msg, "raw_error": raw}
+
+
 def _garmin_client():
     """Retourne un client Garmin Connect authentifié."""
     email    = os.environ.get("GARMIN_EMAIL", "")
@@ -557,14 +599,30 @@ def _garmin_client():
         raise ValueError("Variables GARMIN_EMAIL et GARMIN_PASSWORD non configurées dans Railway.")
     GARMIN_TOKENS.mkdir(parents=True, exist_ok=True)
     client = _GarminConnect(email=email, password=password)
-    # Essayer les tokens sauvegardés (évite une re-auth)
+
+    # 1. Tokens sauvegardés : chemin normal, aucun appel au SSO Garmin
     try:
         client.login(str(GARMIN_TOKENS))
         return client
-    except Exception:
-        pass
-    # Login complet
-    client.login()
+    except Exception as token_err:
+        last_token_error = token_err
+
+    # 2. Login complet par mot de passe — c'est CE chemin que Garmin
+    #    rate-limite depuis les IP de datacenter. On respecte un cooldown
+    #    pour ne pas aggraver le blocage à chaque tentative.
+    remaining = _login_cooldown_remaining()
+    if remaining > 0:
+        raise RuntimeError(
+            f"Connexion Garmin en pause {int(remaining // 60)} min après un rate limit "
+            f"(429). Tokens absents ou expirés ({type(last_token_error).__name__}). "
+            f"Génère-les depuis ton PC : python outils/garmin_login.py"
+        )
+    try:
+        client.login()
+    except Exception as e:
+        if "429" in str(e) or "toomanyrequests" in type(e).__name__.lower():
+            _set_login_cooldown(2 * 3600)  # 2 h avant la prochaine tentative
+        raise
     try:
         client.garth.dump(str(GARMIN_TOKENS))
     except Exception:
@@ -697,13 +755,14 @@ def _fetch_garmin_api(client, days=30):
 # AUTO-SYNC BACKGROUND THREAD
 # ──────────────────────────────────────────────
 def _auto_sync_loop():
-    import time
     time.sleep(60)  # attendre démarrage app
     while True:
         try:
-            if _GARMIN_AVAILABLE and GARMIN_TOKENS.exists():
-                gc = _GarminConnect("")
-                gc.garth.loads(GARMIN_TOKENS.read_text())
+            if _GARMIN_AVAILABLE and _login_cooldown_remaining() <= 0:
+                # _garmin_client() gère le token store et le cooldown 429.
+                # (L'ancien code lisait GARMIN_TOKENS — un DOSSIER — avec
+                # read_text() : l'auto-sync échouait donc systématiquement.)
+                gc = _garmin_client()
                 w, s, a, _ = _fetch_garmin_api(gc, days=30)
                 data = load_from_db() or {}
                 if w:  data["wellness"]   = w
@@ -712,12 +771,31 @@ def _auto_sync_loop():
                 data.setdefault("customer", {})
                 data.setdefault("weight", [])
                 save_to_db(data)
-        except Exception:
-            pass
+                app.logger.info("Auto-sync Garmin OK (%d wellness, %d activités)", len(w), len(a))
+        except Exception as e:
+            app.logger.warning("Auto-sync Garmin échouée : %s", _classify_garmin_error(e)["raw_error"])
         time.sleep(6 * 3600)  # re-sync toutes les 6h
 
-_sync_thread = threading.Thread(target=_auto_sync_loop, daemon=True)
-_sync_thread.start()
+
+def _start_auto_sync_once():
+    """Démarre l'auto-sync dans UN SEUL worker gunicorn.
+
+    Sans ce verrou, chaque worker lançait sa propre boucle et doublait
+    les appels à Garmin — ce qui contribue au rate limiting.
+    """
+    # Volontairement dans le tmp du conteneur (PAS sur le volume persistant) :
+    # il repart à zéro à chaque redémarrage, donc un worker reprend toujours
+    # la main après un déploiement.
+    lock_path = Path(tempfile.gettempdir()) / "garmin_autosync.lock"
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except (FileExistsError, OSError):
+        return
+    os.write(fd, str(os.getpid()).encode())
+    os.close(fd)
+    threading.Thread(target=_auto_sync_loop, daemon=True).start()
+
+_start_auto_sync_once()
 
 
 # ──────────────────────────────────────────────
@@ -1288,12 +1366,58 @@ def _run_sync_background(days):
             }
         })
     except Exception as e:
-        raw = f"{type(e).__name__}: {e}"
-        msg = str(e)
-        if any(k in msg.lower() for k in ["mfa", "2fa", "factor", "multifactor"]):
-            msg = ("Garmin demande une validation (MFA). Génère les tokens depuis ton PC "
-                   "puis envoie-les au serveur — voir outils/garmin_login.py")
-        _write_sync_state({"status": "error", "progress": msg, "raw_error": raw, "result": None})
+        _write_sync_state({"status": "error", **_classify_garmin_error(e), "result": None})
+
+
+@app.route("/api/garmin-tokens", methods=["POST"])
+def api_upload_garmin_tokens():
+    """Reçoit les tokens OAuth générés depuis un PC (IP résidentielle).
+
+    Garmin rate-limite (429) les logins par mot de passe venant des IP de
+    datacenter comme Railway. En envoyant des tokens obtenus localement,
+    le serveur n'a plus jamais besoin de passer par le SSO Garmin.
+    Voir outils/garmin_login.py.
+    """
+    secret = os.environ.get("TOKEN_UPLOAD_SECRET", "")
+    if not secret:
+        return jsonify({"ok": False, "error": "TOKEN_UPLOAD_SECRET non configuré sur le serveur"}), 503
+    provided = request.headers.get("X-Upload-Secret", "")
+    # Comparaison à temps constant
+    import hmac
+    if not hmac.compare_digest(provided, secret):
+        return jsonify({"ok": False, "error": "Secret invalide"}), 403
+
+    files = (request.get_json(silent=True) or {}).get("files")
+    if not isinstance(files, dict) or not files:
+        return jsonify({"ok": False, "error": "Aucun token fourni"}), 400
+
+    GARMIN_TOKENS.mkdir(parents=True, exist_ok=True)
+    written = []
+    for name, content in files.items():
+        # Pas de traversée de chemin : on ne garde que le nom de fichier
+        safe = os.path.basename(str(name))
+        if not safe.endswith(".json") or not isinstance(content, str):
+            continue
+        (GARMIN_TOKENS / safe).write_text(content, encoding="utf-8")
+        written.append(safe)
+    if not written:
+        return jsonify({"ok": False, "error": "Aucun fichier .json valide"}), 400
+
+    # Purger les tokens d'anciens formats (ex: garmin_tokens.json), qui font
+    # échouer le login par token et forcent un login mot de passe à chaque sync
+    for p in GARMIN_TOKENS.glob("*.json"):
+        if p.name not in written:
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
+    # Des tokens frais annulent la pause anti-429
+    try:
+        _LOGIN_COOLDOWN_FILE.unlink()
+    except OSError:
+        pass
+    return jsonify({"ok": True, "written": written})
 
 
 @app.route("/api/sync-garmin", methods=["POST"])
