@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Génère les tokens Garmin Connect depuis TON PC et les envoie au serveur.
+Genere les tokens Garmin Connect depuis TON PC et les envoie au serveur.
 
 Pourquoi : Garmin bloque (erreur 429) les connexions par mot de passe qui
 viennent des IP de datacenter comme Railway. Depuis ta connexion internet
-personnelle, le login passe sans problème. Une fois les tokens envoyés, le
-serveur les réutilise et n'a plus jamais besoin de ton mot de passe.
+personnelle, le login passe sans probleme. Une fois les tokens envoyes, le
+serveur les reutilise et n'a plus jamais besoin de ton mot de passe.
 
-Utilisation :
-    pip install garminconnect
-    python outils/garmin_login.py
+Utilisation (depuis n'importe quel dossier) :
+    python "C:\\Users\\Stef\\garmin_app\\garmin_app\\outils\\garmin_login.py"
 
 Le script te demande ton mot de passe (et le code MFA si Garmin en envoie un).
-Rien n'est écrit sur le disque en clair, rien n'est affiché à l'écran.
+Rien n'est ecrit en clair sur le disque, rien n'est affiche a l'ecran.
 """
 import getpass
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -28,40 +28,106 @@ SERVER = os.environ.get(
     "https://garmin-dashboard-production-1236.up.railway.app",
 ).rstrip("/")
 
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+
+
+def _fix_console_encoding():
+    """La console Windows est en cp1252 : force l'UTF-8 pour les accents."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+def _get_secret():
+    """Recupere TOKEN_UPLOAD_SECRET : variable d'env, puis Railway CLI, puis saisie."""
+    secret = os.environ.get("TOKEN_UPLOAD_SECRET", "").strip()
+    if secret:
+        print("Secret d'envoi : pris dans la variable d'environnement.")
+        return secret
+
+    # Confort : le lire directement depuis Railway si le CLI est connecte
+    try:
+        out = subprocess.run(
+            ["railway", "variables", "--json"],
+            cwd=str(PROJECT_DIR), capture_output=True, text=True, timeout=60,
+        )
+        if out.returncode == 0:
+            data = json.loads(out.stdout)
+            secret = (data.get("TOKEN_UPLOAD_SECRET") or "").strip()
+            if secret:
+                print("Secret d'envoi : recupere automatiquement depuis Railway.")
+                return secret
+    except Exception:
+        pass
+
+    print("\nLe secret est dans Railway > service garmin-dashboard > Variables")
+    print("  > TOKEN_UPLOAD_SECRET  (copie-colle sa valeur)")
+    return getpass.getpass("Secret d'envoi (la saisie reste invisible) : ").strip()
+
+
+def _ask_mfa():
+    """Garmin demande un code a usage unique (email / SMS / application)."""
+    print("\nGarmin demande une validation en deux etapes.")
+    return input("Code recu de Garmin : ").strip()
+
 
 def main():
+    _fix_console_encoding()
+
     try:
         from garminconnect import Garmin
     except ImportError:
-        sys.exit("Module manquant. Lance d'abord :  pip install garminconnect")
+        sys.exit(
+            "Module 'garminconnect' introuvable pour ce Python.\n"
+            f"Python utilise : {sys.executable}\n"
+            "Installe-le avec :\n"
+            f'  "{sys.executable}" -m pip install garminconnect'
+        )
 
-    print("=== Génération des tokens Garmin Connect ===\n")
+    print("=== Generation des tokens Garmin Connect ===\n")
+    print("Ton mot de passe reste sur ce PC : il sert uniquement a obtenir")
+    print("les tokens, et n'est ni enregistre ni transmis au serveur.\n")
+
     email = input("Email Garmin : ").strip()
     if not email:
         sys.exit("Email requis.")
-    password = getpass.getpass("Mot de passe Garmin (invisible) : ")
+    print("Mot de passe (la saisie reste invisible, tape puis Entree) :")
+    password = getpass.getpass("> ")
     if not password:
         sys.exit("Mot de passe requis.")
 
     tokens_dir = Path(tempfile.mkdtemp(prefix="garmin_tokens_"))
     try:
-        print("\nConnexion à Garmin Connect…")
-        client = Garmin(email=email, password=password, prompt_mfa=_ask_mfa)
-        client.login()
-        client.garth.dump(str(tokens_dir))
+        print("\nConnexion a Garmin Connect...")
+        try:
+            client = Garmin(email=email, password=password, prompt_mfa=_ask_mfa)
+        except TypeError:
+            # Versions plus anciennes de garminconnect, sans prompt_mfa
+            client = Garmin(email=email, password=password)
+        try:
+            client.login()
+        except Exception as e:
+            detail = f"{type(e).__name__}: {e}"
+            if "429" in detail or "TooManyRequests" in detail:
+                sys.exit(
+                    "\nGarmin limite aussi les connexions depuis ce PC (429).\n"
+                    "Attends 1 a 2 heures sans reessayer, puis relance ce script."
+                )
+            sys.exit(f"\nEchec de la connexion : {detail}")
 
+        client.garth.dump(str(tokens_dir))
         files = {p.name: p.read_text(encoding="utf-8") for p in tokens_dir.glob("*.json")}
         if not files:
-            sys.exit("Aucun token généré — la connexion a probablement échoué.")
-        print(f"Tokens générés : {', '.join(sorted(files))}")
+            sys.exit("Aucun token genere : la connexion n'a pas abouti.")
+        print(f"Tokens generes : {', '.join(sorted(files))}")
 
-        secret = os.environ.get("TOKEN_UPLOAD_SECRET") or getpass.getpass(
-            "\nSecret d'envoi (TOKEN_UPLOAD_SECRET, invisible) : "
-        )
+        secret = _get_secret()
         if not secret:
             sys.exit("Secret requis pour l'envoi.")
 
-        print(f"Envoi vers {SERVER} …")
+        print(f"\nEnvoi vers {SERVER} ...")
         req = urllib.request.Request(
             f"{SERVER}/api/garmin-tokens",
             data=json.dumps({"files": files}).encode("utf-8"),
@@ -72,15 +138,20 @@ def main():
             with urllib.request.urlopen(req, timeout=30) as resp:
                 result = json.load(resp)
         except urllib.error.HTTPError as e:
-            sys.exit(f"Refus du serveur ({e.code}) : {e.read().decode('utf-8', 'replace')}")
+            body = e.read().decode("utf-8", "replace")
+            if e.code == 403:
+                sys.exit("Secret refuse par le serveur : verifie TOKEN_UPLOAD_SECRET dans Railway.")
+            sys.exit(f"Refus du serveur ({e.code}) : {body}")
+        except urllib.error.URLError as e:
+            sys.exit(f"Serveur injoignable : {e.reason}")
 
         if result.get("ok"):
-            print(f"\n✅ Tokens installés sur le serveur : {', '.join(result['written'])}")
-            print("Tu peux maintenant lancer la sync depuis l'app (onglet Planning).")
+            print(f"\nOK - tokens installes sur le serveur : {', '.join(result['written'])}")
+            print("Lance maintenant la sync depuis l'app (bouton 'Sync Garmin Connect').")
         else:
-            sys.exit(f"Échec : {result.get('error')}")
+            sys.exit(f"Echec : {result.get('error')}")
     finally:
-        # Ne jamais laisser traîner de tokens sur le disque
+        # Ne jamais laisser trainer de tokens sur le disque
         for p in tokens_dir.glob("*"):
             try:
                 p.unlink()
@@ -90,11 +161,6 @@ def main():
             tokens_dir.rmdir()
         except OSError:
             pass
-
-
-def _ask_mfa():
-    """Garmin demande un code à usage unique (email/SMS/app)."""
-    return input("Code MFA reçu de Garmin : ").strip()
 
 
 if __name__ == "__main__":
