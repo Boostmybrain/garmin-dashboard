@@ -549,6 +549,13 @@ def api_update_training_order():
 # ──────────────────────────────────────────────
 # GARMIN CONNECT API — SYNC
 # ──────────────────────────────────────────────
+class GarminTokensMissing(Exception):
+    """Pas de token valide, et le login par mot de passe n'est pas autorisé ici."""
+
+class GarminLoginCooldown(Exception):
+    """Login par mot de passe en pause après un 429."""
+
+
 _LOGIN_COOLDOWN_FILE = DATA_DIR / "garmin_login_cooldown"
 
 def _login_cooldown_remaining():
@@ -577,7 +584,11 @@ def _classify_garmin_error(e):
     low  = raw.lower()
     name = type(e).__name__.lower()
 
-    if "toomanyrequests" in name or "429" in raw or "rate limit" in low:
+    # Nos propres exceptions d'abord : leur texte contient « rate limit »,
+    # elles seraient sinon absorbées par la branche 429 ci-dessous.
+    if isinstance(e, (GarminLoginCooldown, GarminTokensMissing)):
+        msg = str(e)
+    elif "toomanyrequests" in name or "429" in raw or "rate limit" in low:
         msg = ("Garmin limite les connexions (429). C'est temporaire : attends 1 à 2 h. "
                "Pour supprimer le problème durablement, génère les tokens depuis ton PC "
                "(python outils/garmin_login.py).")
@@ -591,8 +602,13 @@ def _classify_garmin_error(e):
     return {"progress": msg, "raw_error": raw}
 
 
-def _garmin_client():
-    """Retourne un client Garmin Connect authentifié."""
+def _garmin_client(allow_password_login=True):
+    """Retourne un client Garmin Connect authentifié.
+
+    allow_password_login=False : n'utilise que les tokens sauvegardés.
+    Le login par mot de passe frappe le SSO Garmin, qui rate-limite les IP
+    de datacenter — on ne le déclenche donc jamais en tâche de fond.
+    """
     email    = os.environ.get("GARMIN_EMAIL", "")
     password = os.environ.get("GARMIN_PASSWORD", "")
     if not email or not password:
@@ -605,17 +621,23 @@ def _garmin_client():
         client.login(str(GARMIN_TOKENS))
         return client
     except Exception as token_err:
-        last_token_error = token_err
+        last_token_error = type(token_err).__name__
+
+    if not allow_password_login:
+        raise GarminTokensMissing(
+            f"Aucun token Garmin valide ({last_token_error}). "
+            f"Génère-les depuis ton PC : python outils/garmin_login.py"
+        )
 
     # 2. Login complet par mot de passe — c'est CE chemin que Garmin
     #    rate-limite depuis les IP de datacenter. On respecte un cooldown
     #    pour ne pas aggraver le blocage à chaque tentative.
     remaining = _login_cooldown_remaining()
     if remaining > 0:
-        raise RuntimeError(
-            f"Connexion Garmin en pause {int(remaining // 60)} min après un rate limit "
-            f"(429). Tokens absents ou expirés ({type(last_token_error).__name__}). "
-            f"Génère-les depuis ton PC : python outils/garmin_login.py"
+        raise GarminLoginCooldown(
+            f"Connexion Garmin en pause encore {int(remaining // 60)} min "
+            f"(rate limit Garmin). Tokens absents ou expirés ({last_token_error}). "
+            f"Génère-les depuis ton PC pour supprimer définitivement le problème."
         )
     try:
         client.login()
@@ -758,11 +780,13 @@ def _auto_sync_loop():
     time.sleep(60)  # attendre démarrage app
     while True:
         try:
-            if _GARMIN_AVAILABLE and _login_cooldown_remaining() <= 0:
-                # _garmin_client() gère le token store et le cooldown 429.
+            if _GARMIN_AVAILABLE:
+                # Tokens uniquement : jamais de login mot de passe en tâche de
+                # fond, sinon on frappe le SSO Garmin toutes les 6 h et on
+                # entretient le rate limit.
                 # (L'ancien code lisait GARMIN_TOKENS — un DOSSIER — avec
                 # read_text() : l'auto-sync échouait donc systématiquement.)
-                gc = _garmin_client()
+                gc = _garmin_client(allow_password_login=False)
                 w, s, a, _ = _fetch_garmin_api(gc, days=30)
                 data = load_from_db() or {}
                 if w:  data["wellness"]   = w
@@ -772,6 +796,8 @@ def _auto_sync_loop():
                 data.setdefault("weight", [])
                 save_to_db(data)
                 app.logger.info("Auto-sync Garmin OK (%d wellness, %d activités)", len(w), len(a))
+        except GarminTokensMissing as e:
+            app.logger.info("Auto-sync en attente de tokens Garmin : %s", e)
         except Exception as e:
             app.logger.warning("Auto-sync Garmin échouée : %s", _classify_garmin_error(e)["raw_error"])
         time.sleep(6 * 3600)  # re-sync toutes les 6h
