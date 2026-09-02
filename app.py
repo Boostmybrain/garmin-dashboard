@@ -602,6 +602,25 @@ def _classify_garmin_error(e):
     return {"progress": msg, "raw_error": raw}
 
 
+def _dump_garmin_tokens(client, store):
+    """Sauvegarde les tokens, quelle que soit la version de garminconnect.
+
+    0.3.x expose le client garth sous .client et ecrit un unique
+    garmin_tokens.json ; 0.2.x l'exposait sous .garth avec deux fichiers
+    oauth1_token.json / oauth2_token.json. Melanger les deux versions rend
+    les tokens illisibles et force un login mot de passe a chaque sync.
+    """
+    for attr in ("client", "garth"):
+        obj = getattr(client, attr, None)
+        if obj is not None and hasattr(obj, "dump"):
+            try:
+                obj.dump(store)
+                return True
+            except Exception:
+                pass
+    return False
+
+
 def _garmin_client(allow_password_login=True):
     """Retourne un client Garmin Connect authentifié.
 
@@ -614,20 +633,26 @@ def _garmin_client(allow_password_login=True):
     if not email or not password:
         raise ValueError("Variables GARMIN_EMAIL et GARMIN_PASSWORD non configurées dans Railway.")
     GARMIN_TOKENS.mkdir(parents=True, exist_ok=True)
-    client = _GarminConnect(email=email, password=password)
+    store = str(GARMIN_TOKENS)
 
-    # 1. Tokens sauvegardés : chemin normal, aucun appel au SSO Garmin
+    # 1. Tokens sauvegardés. Le client est construit SANS mot de passe : si les
+    #    tokens sont absents ou périmés, garminconnect lève une erreur au lieu
+    #    de basculer en douce sur le SSO Garmin (qui rate-limite les IP de
+    #    datacenter). C'est notre garantie de ne jamais frapper le SSO ici.
     try:
-        client.login(str(GARMIN_TOKENS))
-        return client
+        token_only = _GarminConnect(email=email, password=None)
+        token_only.login(store)
+        return token_only
     except Exception as token_err:
         last_token_error = type(token_err).__name__
 
     if not allow_password_login:
         raise GarminTokensMissing(
             f"Aucun token Garmin valide ({last_token_error}). "
-            f"Génère-les depuis ton PC : python outils/garmin_login.py"
+            f"Génère-les depuis ton PC : outils/Generer tokens Garmin.bat"
         )
+
+    client = _GarminConnect(email=email, password=password)
 
     # 2. Login complet par mot de passe — c'est CE chemin que Garmin
     #    rate-limite depuis les IP de datacenter. On respecte un cooldown
@@ -640,15 +665,13 @@ def _garmin_client(allow_password_login=True):
             f"Génère-les depuis ton PC pour supprimer définitivement le problème."
         )
     try:
-        client.login()
+        # En 0.3.x, login(tokenstore) enregistre lui-même les tokens obtenus
+        client.login(store)
     except Exception as e:
         if "429" in str(e) or "toomanyrequests" in type(e).__name__.lower():
             _set_login_cooldown(2 * 3600)  # 2 h avant la prochaine tentative
         raise
-    try:
-        client.garth.dump(str(GARMIN_TOKENS))
-    except Exception:
-        pass
+    _dump_garmin_tokens(client, store)
     return client
 
 

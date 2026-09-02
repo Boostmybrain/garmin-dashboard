@@ -113,20 +113,45 @@ def main():
             # Versions plus anciennes de garminconnect, sans prompt_mfa
             client = Garmin(email=email, password=password)
         try:
-            client.login()
+            # garminconnect 0.3.x enregistre lui-meme les tokens dans ce dossier
+            client.login(str(tokens_dir))
         except Exception as e:
             detail = f"{type(e).__name__}: {e}"
-            if "429" in detail or "TooManyRequests" in detail:
+            if "429" in detail or "TooManyRequests" in detail or "rate limit" in detail.lower():
                 sys.exit(
-                    "\nGarmin limite aussi les connexions depuis ce PC (429).\n"
-                    "Attends 1 a 2 heures sans reessayer, puis relance ce script."
+                    "\nGarmin limite les connexions depuis ce PC aussi (429).\n"
+                    "Attends 2 a 3 heures SANS reessayer, puis relance ce fichier.\n"
+                    "Chaque tentative pendant le blocage prolonge le blocage."
                 )
             sys.exit(f"\nEchec de la connexion : {detail}")
 
-        client.garth.dump(str(tokens_dir))
+        # Filet : 0.2.x expose .garth, 0.3.x expose .client
+        if not list(tokens_dir.glob("*.json")):
+            for attr in ("client", "garth"):
+                obj = getattr(client, attr, None)
+                if obj is not None and hasattr(obj, "dump"):
+                    try:
+                        obj.dump(str(tokens_dir))
+                        break
+                    except Exception:
+                        pass
+
         files = {p.name: p.read_text(encoding="utf-8") for p in tokens_dir.glob("*.json")}
         if not files:
-            sys.exit("Aucun token genere : la connexion n'a pas abouti.")
+            sys.exit(
+                "Aucun token genere : la connexion n'a pas abouti.\n"
+                "Si des messages 429 sont apparus ci-dessus, attends 2 a 3 h puis reessaie."
+            )
+
+        # Verifier que les tokens fonctionnent vraiment avant de les envoyer
+        try:
+            client.get_full_name()
+            print("Connexion verifiee aupres de Garmin.")
+        except Exception as e:
+            sys.exit(
+                f"Les tokens ont ete ecrits mais Garmin refuse encore les appels "
+                f"({type(e).__name__}). Attends 2 a 3 h puis relance ce fichier."
+            )
         print(f"Tokens generes : {', '.join(sorted(files))}")
 
         secret = _get_secret()
