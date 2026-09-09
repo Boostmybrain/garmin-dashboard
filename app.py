@@ -929,7 +929,7 @@ def api_coach_data():
     })
 
 
-HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano']
+HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano','Mollets']
 
 @app.route("/api/habits")
 def api_habits_get():
