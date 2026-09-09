@@ -423,3 +423,43 @@ async function _pollSync(btn, label, origLabel, attempts=0){
     setTimeout(()=>_pollSync(btn, label, origLabel, attempts+1), 3000);
   }
 }
+
+// ── Anti-tap-pendant-défilement sur la bande des jours (mobile) ──────────────
+// En mobile, .plan-list-panel passe en overflow-x:auto : un swipe pour faire
+// défiler les jours déclenchait le onclick de la séance survolée. On neutralise
+// le clic dès que le doigt a bougé, ou juste après un défilement.
+(function(){
+  const MOVE_TOLERANCE  = 10;   // px — au-delà, c'est un swipe, pas un tap
+  const SCROLL_COOLDOWN = 150;  // ms — clics ignorés après le dernier défilement
+
+  let tracking = false, startX = 0, startY = 0, moved = false, lastScrollAt = 0;
+  const inStrip = t => t && t.closest && t.closest('.plan-list-panel');
+
+  document.addEventListener('pointerdown', e => {
+    if(!inStrip(e.target)) return;
+    tracking = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+  }, true);
+
+  document.addEventListener('pointermove', e => {
+    if(!tracking || moved) return;
+    if(Math.abs(e.clientX-startX) > MOVE_TOLERANCE ||
+       Math.abs(e.clientY-startY) > MOVE_TOLERANCE) moved = true;
+  }, true);
+
+  // capture obligatoire : les événements scroll ne remontent pas
+  document.addEventListener('scroll', e => {
+    if(inStrip(e.target)) lastScrollAt = Date.now();
+  }, true);
+
+  // capture : on intercepte avant que le onclick inline de la séance ne parte
+  document.addEventListener('click', e => {
+    if(!inStrip(e.target)) return;
+    const scrolling = Date.now() - lastScrollAt < SCROLL_COOLDOWN;
+    if(moved || scrolling){
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    tracking = false; moved = false;
+  }, true);
+})();
