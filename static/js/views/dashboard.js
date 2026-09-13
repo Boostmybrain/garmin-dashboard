@@ -84,7 +84,7 @@ function actHTML(a){
 const EMPTY=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div>`;
 
 // ══════════════════════════════════════════
-// FORME DU JOUR — une seule évaluation, partagée par le score et le résumé du jour
+// FORME DU JOUR — sommeil, stress, FC repos et charge d'entraînement
 // ══════════════════════════════════════════
 // Fraîcheur d'entraînement : CTL (42 j) − ATL (7 j), TSS estimé depuis la FC moyenne
 function trainingFreshness(A){
@@ -105,8 +105,6 @@ function trainingFreshness(A){
 }
 
 // Récupération (sommeil, stress, FC repos vs ta propre référence) + charge d'entraînement.
-// Le libellé du score et la recommandation du jour sortent de la même note :
-// ils ne peuvent plus se contredire.
 function dayAssessment(W,S,A){
   const l=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
   const sleep=Math.min(30,(ls.sleepTotal_min||0)/480*30);
@@ -154,7 +152,7 @@ function renderScore(W,S,A){
     {ic:'🧠',lbl:'Stress',      val:last.stress>=0?last.stress:'—',          sub:si.label},
   ];
   document.getElementById('scoreLines').innerHTML=lines.map(x=>
-    `<div class="score-line"><span class="score-line-ic">${x.ic}</span><span class="score-line-lbl">${x.lbl}</span><span class="score-line-val">${x.val}</span><span class="score-line-sub">${x.sub}</span></div>`
+    `<div class="score-line"><span class="score-line-ic">${x.ic}</span><span class="score-line-lbl">${x.lbl}</span><span class="score-line-txt"><span class="score-line-val">${x.val}</span> <span class="score-line-sub">${x.sub}</span></span></div>`
   ).join('');
 }
 
@@ -261,36 +259,11 @@ function renderComparison(W,S){
 }
 
 // ══════════════════════════════════════════
-// WIDGET RÉSUMÉ DU JOUR
-// ══════════════════════════════════════════
-function renderDaySummary(W,S,A){
-  const card=document.getElementById('daySummaryCard');if(!card)return;
-  if(!W.length&&!S.length){card.style.display='none';return;}
-  card.style.display='flex';
-  // Date du jour
-  const today=new Date();
-  const days=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
-  const months=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  document.getElementById('dscDate').textContent=`${days[today.getDay()]} ${today.getDate()} ${months[today.getMonth()]}`;
-  // Stats du dernier jour
-  const lw=W.length?W[W.length-1]:{};
-  const ls=S.length?S[S.length-1]:{};
-  document.getElementById('dscSteps').textContent=lw.steps?Math.round(lw.steps/1000*10)/10+'k':'—';
-  document.getElementById('dscSleep').textContent=ls.sleepTotal_min?fmt(ls.sleepTotal_min):'—';
-  document.getElementById('dscHR').textContent=rhr(lw)?rhr(lw)+' bpm':'—';
-  document.getElementById('dscStress2').textContent=lw.stress>=0?lw.stress:'—';
-  // Même évaluation que « Forme du jour »
-  document.getElementById('dscReco').textContent=dayAssessment(W,S,A).reco;
-}
-
-// ══════════════════════════════════════════
 // RENDER DASHBOARD
 // ══════════════════════════════════════════
 function renderDashboard(){
   const W=appData.wellness||[],A=appData.activities||[],S=appData.sleep||[],C=appData.customer||{};
   const Wp=byPeriod(W,curPeriod);
-
-  renderDaySummary(W,S,A);
 
   if(C.firstName){document.getElementById('userName').textContent=C.firstName;document.getElementById('avatarInitial').textContent=C.firstName[0].toUpperCase();}
 

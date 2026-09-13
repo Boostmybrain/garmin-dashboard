@@ -145,36 +145,24 @@
         <div class="dash-training-col" id="todayTrainingWidget"></div>
         <div class="dash-score-col">
           <div class="score-card" id="scoreCard" style="display:none">
-            <div class="score-ring-wrap">
-              <canvas id="scoreRing"></canvas>
-              <div class="score-ring-label"><span id="scoreVal">—</span><small>/ 100</small></div>
-            </div>
-            <div class="score-info">
-              <h3 id="scoreLabel">Score de forme</h3>
-              <p id="scoreDesc">—</p>
-              <div class="score-lines" id="scoreLines"></div>
-              <div class="score-breakdown">
-                <div class="score-item"><div class="score-item-val" id="sc_sleep">—</div><div class="score-item-lbl">Sommeil</div></div>
-                <div class="score-item"><div class="score-item-val" id="sc_stress">—</div><div class="score-item-lbl">Stress</div></div>
-                <div class="score-item"><div class="score-item-val" id="sc_hr">—</div><div class="score-item-lbl">FC repos</div></div>
-                <div class="score-item"><div class="score-item-val" id="sc_load">—</div><div class="score-item-lbl">Charge</div></div>
+            <div class="score-head">
+              <div class="score-ring-wrap">
+                <canvas id="scoreRing"></canvas>
+                <div class="score-ring-label"><span id="scoreVal">—</span><small>/ 100</small></div>
+              </div>
+              <div class="score-info">
+                <h3 id="scoreLabel">Score de forme</h3>
+                <p id="scoreDesc">—</p>
               </div>
             </div>
+            <div class="score-lines" id="scoreLines"></div>
+            <div class="score-breakdown">
+              <div class="score-item"><div class="score-item-val" id="sc_sleep">—</div><div class="score-item-lbl">Sommeil</div></div>
+              <div class="score-item"><div class="score-item-val" id="sc_stress">—</div><div class="score-item-lbl">Stress</div></div>
+              <div class="score-item"><div class="score-item-val" id="sc_hr">—</div><div class="score-item-lbl">FC repos</div></div>
+              <div class="score-item"><div class="score-item-val" id="sc_load">—</div><div class="score-item-lbl">Charge</div></div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Résumé du jour -->
-      <div class="day-summary-card" id="daySummaryCard" style="display:none">
-        <div class="dsc-left">
-          <div class="dsc-date" id="dscDate">—</div>
-          <div class="dsc-reco" id="dscReco">—</div>
-        </div>
-        <div class="dsc-stats">
-          <div class="dsc-stat"><span id="dscSteps">—</span><span class="dsc-lbl">pas</span></div>
-          <div class="dsc-stat"><span id="dscSleep">—</span><span class="dsc-lbl">sommeil</span></div>
-          <div class="dsc-stat"><span id="dscHR">—</span><span class="dsc-lbl">FC repos</span></div>
-          <div class="dsc-stat"><span id="dscStress2">—</span><span class="dsc-lbl">stress</span></div>
         </div>
       </div>
 

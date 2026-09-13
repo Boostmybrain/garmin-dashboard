@@ -37,8 +37,6 @@
   .kpi-value{font-size:21px}
   /* Records 3 colonnes */
   .records-grid{grid-template-columns:repeat(3,1fr)}
-  /* Score card empilée */
-  .score-card{flex-direction:column;align-items:flex-start;gap:14px}
   .dash-top-row{gap:12px;margin-bottom:16px}
   /* Charts moins hauts — !important pour override les styles inline */
   .panel [style*="height:160px"]{height:130px!important}
