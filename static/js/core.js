@@ -28,7 +28,18 @@ document.addEventListener('touchend',e=>{
 // CHART HELPERS
 // ══════════════════════════════════════════
 function dc(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
-function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return null;charts[id]=new Chart(c,cfg);return charts[id]}
+// Valeur d'une variable CSS du thème (ex. cssVar('--surface2'))
+const cssVar=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+// Chart.js dessine sur un canvas et ne sait pas lire 'var(--x)' : la couleur
+// retombait sur le noir (grilles noires, anneau de forme noir). On résout ces
+// chaînes avant de créer le graphique.
+function resolveCssVars(o){
+  if(typeof o==='string'){const m=o.match(/^var\((--[\w-]+)\)$/);return m?(cssVar(m[1])||o):o;}
+  if(Array.isArray(o))return o.map(resolveCssVars);
+  if(o&&Object.getPrototypeOf(o)===Object.prototype){for(const k in o)o[k]=resolveCssVars(o[k]);}
+  return o;
+}
+function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return null;charts[id]=new Chart(c,resolveCssVars(cfg));return charts[id]}
 
 // ══════════════════════════════════════════
 // FORMATTERS

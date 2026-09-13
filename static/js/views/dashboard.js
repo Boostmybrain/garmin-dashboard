@@ -224,38 +224,53 @@ function renderComparison(W,S){
   const curr=inCurr(W), prev=inPrev(W), currS=inCurr(S), prevS=inPrev(S);
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]!=null&&d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0};
 
+  const nf=(v,dec)=>v.toLocaleString('fr-FR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
   const metrics=[
-    {id:'steps',  label:'Pas moy.',    unitShort:'k',  curr:avg(curr,'steps')/1000,      prev:avg(prev,'steps')/1000,      col:'#4A6CF7',lowerBetter:false},
-    {id:'sleep',  label:'Sommeil moy.',unitShort:'h',  curr:avg(currS,'sleepTotal_min')/60,prev:avg(prevS,'sleepTotal_min')/60,col:'#8B5CF6',lowerBetter:false},
-    {id:'cal',    label:'Calories moy.',unitShort:'kcal',curr:avg(curr,'calories'),       prev:avg(prev,'calories'),         col:'#FF6B35',lowerBetter:false},
-    {id:'stress', label:'Stress moy.', unitShort:'',   curr:avg(curr.filter(d=>d.stress>=0),'stress'),prev:avg(prev.filter(d=>d.stress>=0),'stress'),col:'#F59E0B',lowerBetter:true},
-  ];
+    {id:'steps',  label:'Pas moy.',     unit:'k',    dec:1, curr:avg(curr,'steps')/1000,        prev:avg(prev,'steps')/1000,        col:'#4A6CF7',lowerBetter:false},
+    {id:'sleep',  label:'Sommeil moy.', unit:'h',    dec:1, curr:avg(currS,'sleepTotal_min')/60, prev:avg(prevS,'sleepTotal_min')/60, col:'#8B5CF6',lowerBetter:false},
+    {id:'cal',    label:'Calories moy.',unit:'kcal', dec:0, curr:avg(curr,'calories'),          prev:avg(prev,'calories'),          col:'#FF6B35',lowerBetter:false},
+    {id:'stress', label:'Stress moy.',  unit:'',     dec:0, curr:avg(curr.filter(d=>d.stress>=0),'stress'),prev:avg(prev.filter(d=>d.stress>=0),'stress'),col:'#F59E0B',lowerBetter:true},
+  ].map(m=>{
+    const delta=m.prev?(m.curr-m.prev)/m.prev*100:null;
+    const better=delta==null?null:(m.lowerBetter?delta<0:delta>0);
+    const fmtV=v=>`${nf(v,m.dec)}${m.unit?' '+m.unit:''}`;
+    return{...m,delta,fmtV,deltaCol:delta==null||Math.round(delta)===0?'#94A3B8':better?'#22C55E':'#EF4444'};
+  });
 
   const grid=document.getElementById('compGrid');
   grid.innerHTML=metrics.map(m=>{
-    const delta=m.prev?((m.curr-m.prev)/m.prev*100):0;
-    const better=m.lowerBetter?delta<0:delta>0;
-    const col=better?'#22C55E':delta===0?'#94A3B8':'#EF4444';
-    const arrow=delta>0?'↑':delta<0?'↓':'→';
-    const pct=Math.abs(Math.round(delta));
+    const arrow=m.delta>0?'↑':m.delta<0?'↓':'→';
     const barPct=m.prev?Math.min(100,m.curr/m.prev*100):100;
-    const deltaTxt=m.prev?`${arrow} ${pct}%`:'—';
+    const deltaTxt=m.delta==null?'—':`${arrow} ${Math.abs(Math.round(m.delta))}%`;
     return`<div class="cmp-card">
       <div class="cmp-label">${m.label}</div>
-      <div class="cmp-row"><span class="cmp-val">${m.curr.toFixed(1)} ${m.unitShort}</span><span style="color:${m.prev?col:'#94A3B8'};font-weight:700;font-size:13px">${deltaTxt}</span></div>
-      <div class="cmp-prev">Préc. : ${m.prev?m.prev.toFixed(1)+' '+m.unitShort:'pas de données'}</div>
+      <div class="cmp-row"><span class="cmp-val">${m.fmtV(m.curr)}</span><span style="color:${m.deltaCol};font-weight:700;font-size:13px">${deltaTxt}</span></div>
+      <div class="cmp-prev">Préc. : ${m.prev?m.fmtV(m.prev):'pas de données'}</div>
       <div class="cmp-bar-bg"><div class="cmp-bar-curr" style="width:${barPct}%;background:${m.col}"></div></div>
     </div>`;
   }).join('');
 
-  // Grouped bar chart
+  // Variation en % : une seule unité pour les 4 mesures. Les valeurs brutes
+  // (≈ 2 500 kcal contre 8,8 k pas) rendaient 3 barres sur 4 invisibles.
+  const withPrev=metrics.filter(m=>m.delta!=null);
+  const maxAbs=Math.max(10,...withPrev.map(m=>Math.ceil(Math.abs(m.delta)/5)*5));
   mkChart('compChart',{type:'bar',data:{
-    labels:metrics.map(m=>m.label),
-    datasets:[
-      {label:'Période actuelle',data:metrics.map(m=>+m.curr.toFixed(1)),backgroundColor:metrics.map(m=>m.col+'CC'),borderRadius:6},
-      {label:'Période précédente',data:metrics.map(m=>+m.prev.toFixed(1)),backgroundColor:metrics.map(m=>m.col+'44'),borderRadius:6},
-    ]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:10},color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
+    labels:withPrev.map(m=>m.label),
+    datasets:[{
+      label:'Variation',
+      data:withPrev.map(m=>+m.delta.toFixed(1)),
+      backgroundColor:withPrev.map(m=>m.deltaCol+'CC'),
+      borderColor:withPrev.map(m=>m.deltaCol),
+      borderWidth:1.5,borderRadius:6,barThickness:22,
+    }]
+  },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>{const m=withPrev[c.dataIndex];return`${m.delta>0?'+':''}${nf(m.delta,1)} %  (${m.fmtV(m.curr)} vs ${m.fmtV(m.prev)})`;}}}},
+    scales:{
+      x:{min:-maxAbs,max:maxAbs,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v>0?'+':''}${v} %`},
+        grid:{color:c=>c.tick.value===0?'#94A3B8':cssVar('--surface2'),lineWidth:c=>c.tick.value===0?1.5:1}},
+      y:{ticks:{font:{size:11},color:'#6B7280'},grid:{display:false}},
+    }}});
 }
 
 // ══════════════════════════════════════════
