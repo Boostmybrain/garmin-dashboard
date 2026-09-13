@@ -144,6 +144,72 @@ def init_db():
             habit TEXT NOT NULL,
             PRIMARY KEY (date, habit)
         )""")
+        # Mesures à ignorer à l'affichage (ex. FC repos d'une nuit sans montre).
+        # Stockées à part : la sync Garmin réécrit les 30 derniers jours et
+        # ramènerait sinon la valeur faussée.
+        c.execute("""CREATE TABLE IF NOT EXISTS metric_exclusions(
+            date   TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            PRIMARY KEY (date, metric)
+        )""")
+
+# Historique conservé : 400 jours couvrent la heatmap (365 j) et les comparaisons.
+HISTORY_DAYS = 400
+
+def _merge_by_date(old: list, new: list) -> list:
+    """Fusionne deux listes datées ; à date égale, la nouvelle entrée gagne.
+    Les activités (plusieurs par jour) sont clées sur date + type + durée :
+    le nom diffère entre l'export Garmin et l'API pour une même séance."""
+    def key(item):
+        if "type" in item and "duration_min" in item:
+            return (item.get("date"), item.get("type"), round(item.get("duration_min") or 0))
+        return item.get("date")
+    by_key = {key(i): i for i in old if i.get("date")}
+    for i in new:
+        if i.get("date"):
+            by_key[key(i)] = i
+    return sorted(by_key.values(), key=lambda x: x["date"])
+
+def merge_garmin_data(existing: dict | None, new: dict) -> dict:
+    """Fusionne des données Garmin nouvelles dans l'existant, sans jamais
+    perdre l'historique (l'auto-sync ne récupère que 30 jours)."""
+    from datetime import date as _date, timedelta
+    existing = existing or {}
+    cutoff = (_date.today() - timedelta(days=HISTORY_DAYS)).isoformat()
+    merged = {}
+    for k in ("wellness", "sleep", "activities"):
+        rows = _merge_by_date(existing.get(k, []), new.get(k) or [])
+        merged[k] = [r for r in rows if r["date"] >= cutoff]
+    merged["customer"] = new.get("customer") or existing.get("customer", {})
+    merged["weight"] = _merge_by_date(existing.get("weight", []), new.get("weight") or [])
+    return merged
+
+def load_exclusions() -> list:
+    with sqlite3.connect(DATABASE) as c:
+        return [{"date": d, "metric": m} for d, m in
+                c.execute("SELECT date, metric FROM metric_exclusions ORDER BY date")]
+
+def apply_exclusions(data: dict | None) -> dict | None:
+    """Neutralise à l'affichage les mesures déclarées faussées.
+    'restingHR' efface aussi minHR, sinon le front retombe sur minHR."""
+    if not data:
+        return data
+    excl = load_exclusions()
+    if not excl:
+        return data
+    by_date = {}
+    for e in excl:
+        by_date.setdefault(e["date"], set()).add(e["metric"])
+    for w in data.get("wellness", []):
+        for metric in by_date.get(w.get("date"), ()):
+            if metric == "restingHR":
+                w["restingHR"] = None
+                w["minHR"] = None
+            elif metric != "sleep":
+                w[metric] = None
+    data["sleep"] = [s for s in data.get("sleep", [])
+                     if "sleep" not in by_date.get(s.get("date"), ())]
+    return data
 
 def save_to_db(data: dict):
     with sqlite3.connect(DATABASE) as c:
@@ -811,12 +877,10 @@ def _auto_sync_loop():
                 # read_text() : l'auto-sync échouait donc systématiquement.)
                 gc = _garmin_client(allow_password_login=False)
                 w, s, a, _ = _fetch_garmin_api(gc, days=30)
-                data = load_from_db() or {}
-                if w:  data["wellness"]   = w
-                if s:  data["sleep"]      = s
-                if a:  data["activities"] = a
-                data.setdefault("customer", {})
-                data.setdefault("weight", [])
+                # Fusion, pas remplacement : remplacer ne gardait que 30 jours
+                # et effaçait tout l'historique à chaque passage.
+                data = merge_garmin_data(load_from_db(),
+                                         {"wellness": w, "sleep": s, "activities": a})
                 save_to_db(data)
                 app.logger.info("Auto-sync Garmin OK (%d wellness, %d activités)", len(w), len(a))
         except GarminTokensMissing as e:
@@ -902,17 +966,55 @@ def service_worker():
 
 @app.route("/api/data")
 def api_data():
-    data = load_from_db()
+    data = apply_exclusions(load_from_db())
     if data is None:
         return jsonify({"ok": False})
     return jsonify({"ok": True, "data": data})
+
+
+@app.route("/api/metric-exclusions", methods=["GET", "POST", "DELETE"])
+def api_metric_exclusions():
+    """Liste, ajoute ou retire une mesure à ignorer.
+    Corps POST/DELETE : {"date": "YYYY-MM-DD", "metric": "restingHR"|"sleep"|<champ wellness>}"""
+    if request.method == "GET":
+        return jsonify({"ok": True, "exclusions": load_exclusions()})
+    body = request.get_json(silent=True) or {}
+    date, metric = body.get("date", ""), body.get("metric", "")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) or not re.fullmatch(r"[A-Za-z_]{2,40}", metric):
+        return jsonify({"ok": False, "error": "date ou metric invalide"}), 400
+    with sqlite3.connect(DATABASE) as c:
+        if request.method == "POST":
+            c.execute("INSERT OR IGNORE INTO metric_exclusions(date, metric) VALUES(?,?)", [date, metric])
+        else:
+            c.execute("DELETE FROM metric_exclusions WHERE date=? AND metric=?", [date, metric])
+    return jsonify({"ok": True, "exclusions": load_exclusions()})
+
+
+@app.route("/api/data-merge", methods=["POST"])
+def api_data_merge():
+    """Fusionne un lot d'historique (wellness/sleep/activities) dans la base.
+    Sert à restaurer l'historique depuis un export Garmin parsé sur le PC.
+    Protégé par le même secret que /api/garmin-tokens."""
+    import hmac
+    secret = os.environ.get("TOKEN_UPLOAD_SECRET", "")
+    if not secret:
+        return jsonify({"ok": False, "error": "TOKEN_UPLOAD_SECRET non configuré sur le serveur"}), 503
+    if not hmac.compare_digest(request.headers.get("X-Upload-Secret", ""), secret):
+        return jsonify({"ok": False, "error": "Secret invalide"}), 403
+    body = request.get_json(silent=True) or {}
+    new = {k: body.get(k) or [] for k in ("wellness", "sleep", "activities")}
+    if not any(new.values()):
+        return jsonify({"ok": False, "error": "Aucune donnée fournie"}), 400
+    merged = merge_garmin_data(load_from_db(), new)
+    save_to_db(merged)
+    return jsonify({"ok": True, "counts": {k: len(merged[k]) for k in ("wellness", "sleep", "activities")}})
 
 
 @app.route("/api/coach-data")
 def api_coach_data():
     """Résumé compact des 30 derniers jours pour analyse coaching."""
     from datetime import date as _date, timedelta
-    data = load_from_db()
+    data = apply_exclusions(load_from_db())
     if not data:
         return jsonify({"ok": False})
     cutoff = (_date.today() - timedelta(days=60)).isoformat()
@@ -1002,7 +1104,9 @@ def api_import():
     tmp.close()
     try:
         files = extract_all_from_rar(tmp.name) if suffix == ".rar" else extract_all_from_zip(tmp.name)
-        data = build_garmin_data(files)
+        # Un export date de son téléchargement : on le fusionne pour ne pas
+        # écraser les jours plus récents apportés par la sync.
+        data = merge_garmin_data(load_from_db(), build_garmin_data(files))
         save_to_db(data)
         return jsonify({"ok": True, "data": data,
                         "summary": {
@@ -1381,21 +1485,9 @@ def _run_sync_background(days):
         _write_sync_state({"status": "running", "progress": f"Récupération des données ({days} jours)…", "result": None})
         new_wellness, new_sleep, new_activities, fetch_errors = _fetch_garmin_api(client, days)
 
-        existing = load_from_db() or {"wellness": [], "activities": [], "sleep": [], "customer": {}}
-        def _merge(old, new):
-            by_date = {item["date"]: item for item in old if "date" in item}
-            for item in new:
-                if "date" in item:
-                    by_date[item["date"]] = item
-            return sorted(by_date.values(), key=lambda x: x["date"])
-
-        merged = {
-            "wellness":   _merge(existing.get("wellness",   []), new_wellness)[-365:],
-            "sleep":      _merge(existing.get("sleep",      []), new_sleep)[-365:],
-            "activities": _merge(existing.get("activities", []), new_activities)[-300:],
-            "customer":   existing.get("customer", {}),
-            "weight":     existing.get("weight", []),
-        }
+        merged = merge_garmin_data(load_from_db(), {"wellness": new_wellness,
+                                                     "sleep": new_sleep,
+                                                     "activities": new_activities})
         save_to_db(merged)
         warn = ""
         if fetch_errors and not new_wellness:
@@ -1475,7 +1567,7 @@ def api_sync_garmin():
         return jsonify({"error": "Package 'garminconnect' non installé."}), 500
 
     body = request.get_json(silent=True) or {}
-    days = max(1, min(int(body.get("days", 30)), 90))
+    days = max(1, min(int(body.get("days", 30)), 180))
 
     # Si un sync tourne déjà (dans n'importe quel worker), ne pas en lancer un deuxième
     state = _read_sync_state()

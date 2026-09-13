@@ -1,4 +1,4 @@
-// ── dashboard.js — Tableau de bord : score, records, heatmap, comparaison, alertes, rapport ──
+// ── dashboard.js — Tableau de bord : forme du jour, heatmap, comparaison, alertes, rapport ──
 
 // ══════════════════════════════════════════
 // SHARED HELPERS
@@ -84,51 +84,78 @@ function actHTML(a){
 const EMPTY=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div>`;
 
 // ══════════════════════════════════════════
-// SCORE
+// FORME DU JOUR — une seule évaluation, partagée par le score et le résumé du jour
 // ══════════════════════════════════════════
-function calcScore(W,S){
-  const l=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
-  const slSc=Math.min(30,(ls.sleepTotal_min||0)/480*30);
-  const stSc=(l.stress!=null&&l.stress>=0)?(100-l.stress)/100*30:15;
-  const hrSc=rhr(l)?Math.max(0,Math.min(20,(80-rhr(l))/30*20)):10;
-  const spSc=Math.min(20,(l.steps||0)/10000*20);
-  return{total:Math.round(slSc+stSc+hrSc+spSc),sleep:Math.round(slSc),stress:Math.round(stSc),hr:Math.round(hrSc),steps:Math.round(spSc)};
+// Fraîcheur d'entraînement : CTL (42 j) − ATL (7 j), TSS estimé depuis la FC moyenne
+function trainingFreshness(A){
+  const refMax=Math.max(...A.filter(a=>a.maxHR).map(a=>a.maxHR),185);
+  const tssMap={};
+  A.forEach(a=>{
+    const intensity=a.avgHR?Math.min(1,a.avgHR/refMax):0.65;
+    tssMap[a.date]=(tssMap[a.date]||0)+a.duration_min*intensity*intensity*100/60;
+  });
+  const k_ctl=1-Math.exp(-1/42),k_atl=1-Math.exp(-1/7);
+  let ctl=0,atl=0;
+  for(let i=179;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const tss=tssMap[localISO(d)]||0;
+    ctl+=k_ctl*(tss-ctl);atl+=k_atl*(tss-atl);
+  }
+  return ctl-atl;
 }
-function renderScore(W,S){
-  const sc=calcScore(W,S);
+
+// Récupération (sommeil, stress, FC repos vs ta propre référence) + charge d'entraînement.
+// Le libellé du score et la recommandation du jour sortent de la même note :
+// ils ne peuvent plus se contredire.
+function dayAssessment(W,S,A){
+  const l=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
+  const sleep=Math.min(30,(ls.sleepTotal_min||0)/480*30);
+  const stress=(l.stress!=null&&l.stress>=0)?(100-l.stress)/100*30:15;
+  // FC repos : écart à la médiane des 30 jours précédents (−4 pts par bpm au-dessus)
+  const past=W.slice(-31,-1).map(rhr).filter(v=>v).sort((a,b)=>a-b);
+  const base=past.length>=5?past[Math.floor(past.length/2)]:null;
+  let hr=10;
+  if(rhr(l)) hr=base?Math.max(0,Math.min(20,20-Math.max(0,rhr(l)-base)*4)):Math.max(0,Math.min(20,(80-rhr(l))/30*20));
+  const freshness=trainingFreshness(A);
+  const load=Math.max(0,Math.min(20,10+freshness/2));
+  const total=Math.round(sleep+stress+hr+load);
+  const lvl=total>=80?0:total>=60?1:total>=40?2:3;
+  return{
+    total,freshness,
+    parts:{sleep:Math.round(sleep),stress:Math.round(stress),hr:Math.round(hr),load:Math.round(load)},
+    label:['Excellent','Bon','Moyen','Fatigué'][lvl],
+    color:['#4A6CF7','#22C55E','#F59E0B','#EF4444'][lvl],
+    desc:['Excellente récupération — séance intense possible.','Bonne forme — entraînement normal.','Forme moyenne — séance légère ou modérée.','Récupération insuffisante — repos ou récupération active.'][lvl],
+    reco:['💪 Séance intense possible aujourd\'hui','✅ Entraînement normal aujourd\'hui','⚡ Séance légère ou modérée aujourd\'hui','🛌 Récupération recommandée aujourd\'hui'][lvl],
+  };
+}
+
+function renderScore(W,S,A){
+  const sc=dayAssessment(W,S,A);
   document.getElementById('scoreCard').style.display='flex';
   document.getElementById('scoreVal').textContent=sc.total;
-  ['sleep','stress','hr','steps'].forEach(k=>{document.getElementById('sc_'+k).textContent=sc[k]+'/'+(k==='sleep'||k==='stress'?30:20);});
-  const col=sc.total>=80?'#4A6CF7':sc.total>=60?'#22C55E':sc.total>=40?'#F59E0B':'#EF4444';
-  const lbl=sc.total>=80?'Excellent':sc.total>=60?'Bon':sc.total>=40?'Moyen':'Fatigué';
-  document.getElementById('scoreLabel').textContent=`Forme du jour : ${lbl}`;
-  document.getElementById('scoreDesc').textContent=sc.total>=80?'Excellente récupération — prêt pour une grosse séance !':sc.total>=60?'Bonne forme, entraînement normal recommandé.':sc.total>=40?'Forme moyenne — séance légère conseillée.':'Récupération insuffisante, reposez-vous.';
-  mkChart('scoreRing',{type:'doughnut',data:{labels:['Score','Reste'],datasets:[{data:[sc.total,100-sc.total],backgroundColor:[col,'var(--surface2)'],borderWidth:0,cutout:'78%'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}});
-}
+  document.getElementById('sc_sleep').textContent=sc.parts.sleep+'/30';
+  document.getElementById('sc_stress').textContent=sc.parts.stress+'/30';
+  document.getElementById('sc_hr').textContent=sc.parts.hr+'/20';
+  document.getElementById('sc_load').textContent=sc.parts.load+'/20';
+  document.getElementById('scoreLabel').textContent=`Forme du jour : ${sc.label}`;
+  document.getElementById('scoreDesc').textContent=sc.desc;
+  mkChart('scoreRing',{type:'doughnut',data:{labels:['Score','Reste'],datasets:[{data:[sc.total,100-sc.total],backgroundColor:[sc.color,'var(--surface2)'],borderWidth:0,cutout:'78%'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}});
 
-// ══════════════════════════════════════════
-// RECORDS PERSONNELS
-// ══════════════════════════════════════════
-function renderRecords(W,A,S){
-  const grid=document.getElementById('recordsGrid');
-  if(!W.length&&!A.length&&!S.length){grid.style.display='none';return;}
-  const maxStepDay=W.reduce((best,d)=>d.steps>best.steps?d:best,{steps:0});
-  const bestRun=A.filter(a=>a.type==='running'&&a.distance_km>0).reduce((b,a)=>a.distance_km>b.distance_km?a:b,{distance_km:0});
-  const lowestHR=W.filter(d=>rhr(d)).reduce((b,d)=>rhr(d)<rhr(b)?d:b,{restingHR:null,minHR:999});
-  const bestSleep=S.reduce((b,s)=>s.sleepTotal_min>b.sleepTotal_min?s:b,{sleepTotal_min:0});
-  const maxCal=W.reduce((b,d)=>d.calories>b.calories?d:b,{calories:0});
-  const longestAct=A.reduce((b,a)=>a.duration_min>b.duration_min?a:b,{duration_min:0});
-
-  const recs=[
-    {icon:'👟',val:maxStepDay.steps?(maxStepDay.steps/1000).toFixed(1)+'k':'—',lbl:'Record pas'},
-    {icon:'🏃',val:bestRun.distance_km?bestRun.distance_km+' km':'—',lbl:'Meilleure course'},
-    {icon:'❤️',val:rhr(lowestHR)&&rhr(lowestHR)<999?rhr(lowestHR)+' bpm':'—',lbl:'FC repos min'},
-    {icon:'😴',val:bestSleep.sleepTotal_min?fmt(bestSleep.sleepTotal_min):'—',lbl:'Meilleure nuit'},
-    {icon:'🔥',val:maxCal.calories?(maxCal.calories.toLocaleString('fr-FR')+' kcal'):'—',lbl:'Max calories/jour'},
-    {icon:'⏱️',val:longestAct.duration_min?longestAct.duration_min+' min':'—',lbl:'Séance la plus longue'},
+  // Chiffres du jour, en texte simple sous le verdict
+  const last=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
+  const nb=v=>v!=null?v.toLocaleString('fr-FR'):'—';
+  const si=stressInfo(last.stress);
+  const lines=[
+    {ic:'😴',lbl:'Sommeil',     val:fmt(ls.sleepTotal_min),                  sub:'dernière nuit'},
+    {ic:'🔥',lbl:'Calories',    val:nb(last.calories)+' kcal',               sub:'brûlées'},
+    {ic:'👟',lbl:'Pas',         val:nb(last.steps),                          sub:'aujourd\'hui'},
+    {ic:'❤️',lbl:'FC min / max',val:(rhr(last)||'—')+' bpm',                 sub:`FC repos · max : ${last.maxHR||'—'} bpm`},
+    {ic:'🧠',lbl:'Stress',      val:last.stress>=0?last.stress:'—',          sub:si.label},
   ];
-  grid.style.display='grid';
-  grid.innerHTML=recs.map(r=>`<div class="record-card"><div class="record-icon">${r.icon}</div><div class="record-val">${r.val}</div><div class="record-lbl">${r.lbl}</div></div>`).join('');
+  document.getElementById('scoreLines').innerHTML=lines.map(x=>
+    `<div class="score-line"><span class="score-line-ic">${x.ic}</span><span class="score-line-lbl">${x.lbl}</span><span class="score-line-val">${x.val}</span><span class="score-line-sub">${x.sub}</span></div>`
+  ).join('');
 }
 
 // ══════════════════════════════════════════
@@ -191,8 +218,12 @@ function renderComparison(W,S){
   panel.style.display='block';
   document.getElementById('compBadge').textContent=`${curPeriod}j vs ${curPeriod}j précédents`;
 
-  const curr=byPeriod(W,curPeriod), prev=W.slice(-curPeriod*2,-curPeriod);
-  const currS=byPeriod(S,curPeriod), prevS=S.slice(-curPeriod*2,-curPeriod);
+  // Découpage par DATE et non par position dans le tableau : avec des jours
+  // manquants, « les N dernières entrées » ne correspondaient à aucune période réelle.
+  const dayStr=n=>{const d=new Date();d.setDate(d.getDate()-n);return localISO(d);};
+  const t0=dayStr(curPeriod), t1=dayStr(curPeriod*2);
+  const inCurr=arr=>arr.filter(d=>d.date>t0), inPrev=arr=>arr.filter(d=>d.date>t1&&d.date<=t0);
+  const curr=inCurr(W), prev=inPrev(W), currS=inCurr(S), prevS=inPrev(S);
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]!=null&&d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0};
 
   const metrics=[
@@ -210,10 +241,11 @@ function renderComparison(W,S){
     const arrow=delta>0?'↑':delta<0?'↓':'→';
     const pct=Math.abs(Math.round(delta));
     const barPct=m.prev?Math.min(100,m.curr/m.prev*100):100;
+    const deltaTxt=m.prev?`${arrow} ${pct}%`:'—';
     return`<div class="cmp-card">
       <div class="cmp-label">${m.label}</div>
-      <div class="cmp-row"><span class="cmp-val">${m.curr.toFixed(1)} ${m.unitShort}</span><span style="color:${col};font-weight:700;font-size:13px">${arrow} ${pct}%</span></div>
-      <div class="cmp-prev">Préc. : ${m.prev.toFixed(1)} ${m.unitShort}</div>
+      <div class="cmp-row"><span class="cmp-val">${m.curr.toFixed(1)} ${m.unitShort}</span><span style="color:${m.prev?col:'#94A3B8'};font-weight:700;font-size:13px">${deltaTxt}</span></div>
+      <div class="cmp-prev">Préc. : ${m.prev?m.prev.toFixed(1)+' '+m.unitShort:'pas de données'}</div>
       <div class="cmp-bar-bg"><div class="cmp-bar-curr" style="width:${barPct}%;background:${m.col}"></div></div>
     </div>`;
   }).join('');
@@ -247,31 +279,8 @@ function renderDaySummary(W,S,A){
   document.getElementById('dscSleep').textContent=ls.sleepTotal_min?fmt(ls.sleepTotal_min):'—';
   document.getElementById('dscHR').textContent=rhr(lw)?rhr(lw)+' bpm':'—';
   document.getElementById('dscStress2').textContent=lw.stress>=0?lw.stress:'—';
-  // Recommandation basée sur freshness CTL/ATL + sommeil + stress
-  const refMax=Math.max(...A.filter(a=>a.maxHR).map(a=>a.maxHR),185);
-  const tssMap={};
-  A.forEach(a=>{
-    const intensity=a.avgHR?Math.min(1,a.avgHR/refMax):0.65;
-    const tss=a.duration_min*intensity*intensity*100/60;
-    tssMap[a.date]=(tssMap[a.date]||0)+tss;
-  });
-  const k_ctl=1-Math.exp(-1/42),k_atl=1-Math.exp(-1/7);
-  let ctl=0,atl=0;
-  for(let i=89;i>=0;i--){
-    const d=new Date();d.setDate(d.getDate()-i);
-    const ds=localISO(d);
-    const tss=tssMap[ds]||0;
-    ctl+=k_ctl*(tss-ctl);atl+=k_atl*(tss-atl);
-  }
-  const freshness=ctl-atl;
-  const sleepH=(ls.sleepTotal_min||0)/60;
-  const stress=lw.stress>=0?lw.stress:50;
-  let reco='';
-  if(freshness>10&&sleepH>=7&&stress<50) reco='💪 Bonne fenêtre — séance intense possible';
-  else if(freshness<-15||sleepH<5.5||stress>65) reco='🛌 Récupération recommandée aujourd\'hui';
-  else if(freshness<-5||sleepH<6.5) reco='⚡ Séance légère ou modérée conseillée';
-  else reco='✅ Forme correcte — entraînement normal';
-  document.getElementById('dscReco').textContent=reco;
+  // Même évaluation que « Forme du jour »
+  document.getElementById('dscReco').textContent=dayAssessment(W,S,A).reco;
 }
 
 // ══════════════════════════════════════════
@@ -279,64 +288,30 @@ function renderDaySummary(W,S,A){
 // ══════════════════════════════════════════
 function renderDashboard(){
   const W=appData.wellness||[],A=appData.activities||[],S=appData.sleep||[],C=appData.customer||{};
-  const Wp=byPeriod(W,curPeriod),Sp=byPeriod(S,curPeriod);
+  const Wp=byPeriod(W,curPeriod);
 
   renderDaySummary(W,S,A);
 
   if(C.firstName){document.getElementById('userName').textContent=C.firstName;document.getElementById('avatarInitial').textContent=C.firstName[0].toUpperCase();}
 
-  renderScore(W,S);
+  renderScore(W,S,A);
   renderAlerts(W,S,A);
   renderWeeklyReport(W,S,A);
-  renderRecords(W,A,S);
   renderHeatmap(W);
   renderComparison(W,S);
-
-  const last=W.length?W[W.length-1]:{},ls=S.length?S[S.length-1]:{};
-  document.getElementById('kSleep').textContent=fmt(ls.sleepTotal_min);
-  document.getElementById('kCal').textContent=(last.calories||0).toLocaleString('fr-FR');
-  document.getElementById('kSteps').textContent=(last.steps||0).toLocaleString('fr-FR');
-  document.getElementById('kHR').innerHTML=`${rhr(last)||'—'}<span style="font-size:14px;font-weight:400;color:var(--text2)"> bpm</span>`;
-  document.getElementById('kHRsub').textContent=`FC repos · max : ${last.maxHR||'—'} bpm`;
-  const si=stressInfo(last.stress);
-  document.getElementById('kStress').textContent=last.stress>=0?last.stress:'—';
-  document.getElementById('kStressLabel').textContent=si.label;
-
-  // Trends
-  renderTrend('tSleep', calcTrend(S,'sleepTotal_min',curPeriod,false));
-  renderTrend('tCal',   calcTrend(W,'calories',curPeriod,false));
-  renderTrend('tSteps', calcTrend(W,'steps',curPeriod,false));
-  renderTrend('tHR',    calcTrend(W.map(d=>({...d,_rhr:rhr(d)})),'_rhr',curPeriod,true));
-  renderTrend('tStress',calcTrend(W.filter(d=>d.stress>=0),'stress',curPeriod,true));
-
-  spark('spSleep',S.slice(-14).map(s=>s.sleepTotal_min),'#8B5CF6');
-  spark('spCal',W.slice(-14).map(d=>d.calories),'#FF6B35');
-  spark('spSteps',W.slice(-14).map(d=>d.steps),'#22C55E');
-  spark('spHR',W.slice(-14).map(d=>rhr(d)||0),'#0EA5E9');
-  spark('spStress',W.slice(-14).map(d=>Math.max(0,d.stress||0)),'#F59E0B');
-
-  document.getElementById('sleepBadge').textContent=ls.date?fmtDate(ls.date):'—';
-  document.getElementById('slInBed').textContent=fmt(ls.inBed_min);
-  document.getElementById('slTotal').textContent=fmt(ls.sleepTotal_min);
-  renderSleepDonut('sleepDonut','sleepPhases',ls);
 
   document.getElementById('actList').innerHTML=A.length?[...A].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(actHTML).join(''):EMPTY;
   document.getElementById('actBadge').textContent=A.length?`${A.length} séances`:'—';
 
   document.getElementById('stepsChartBadge').textContent=curPeriod+'j';
   document.getElementById('stressChartBadge').textContent=curPeriod+'j';
-  document.getElementById('sleepTrendBadge').textContent=Math.min(Sp.length,15)+' nuits';
 
   mkChart('stepsChart',{type:'bar',data:{labels:Wp.map(d=>fmtDate(d.date)),datasets:[{label:'Pas',data:Wp.map(d=>d.steps),backgroundColor:Wp.map(d=>d.steps>=10000?'#22C55E55':d.steps>=7500?'#4A6CF755':'#94A3B855'),borderColor:Wp.map(d=>d.steps>=10000?'#22C55E':d.steps>=7500?'#4A6CF7':'#94A3B8'),borderWidth:1.5,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString('fr-FR')} pas`}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}}}}});
 
   const sw=Wp.filter(d=>d.stress!=null&&d.stress>=0);
-  mkChart('stressChart',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C722',borderWidth:2,pointRadius:2,fill:true,tension:.4,yAxisID:'y'},{label:'FC repos',data:sw.map(d=>rhr(d)||0),borderColor:'#0EA5E9',backgroundColor:'transparent',borderWidth:2,pointRadius:2,fill:false,tension:.4,yAxisID:'y2'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,position:'left',ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},min:0,max:100},y2:{display:true,position:'right',ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}}}}});
+  mkChart('stressChart',{type:'line',data:{labels:sw.map(d=>fmtDate(d.date)),datasets:[{label:'Stress',data:sw.map(d=>d.stress),borderColor:'#F59E0B',backgroundColor:'#FEF3C722',borderWidth:2,pointRadius:2,fill:true,tension:.4,yAxisID:'y'},{label:'FC repos',data:sw.map(d=>rhr(d)||null),spanGaps:true,borderColor:'#0EA5E9',backgroundColor:'transparent',borderWidth:2,pointRadius:2,fill:false,tension:.4,yAxisID:'y2'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:8,color:'#9CA3AF'},grid:{display:false}},y:{display:true,position:'left',ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'},min:0,max:100},y2:{display:true,position:'right',ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}}}}});
 
   renderRunChart('runChart',A);
-
-  const sl=Sp.slice(-15);
-  const slTotals=sl.map(s=>+(s.sleepTotal_min/60).toFixed(2));
-  mkChart('sleepTrend',{type:'bar',data:{labels:sl.map(s=>fmtDate(s.date)),datasets:[{label:'Profond',data:sl.map(s=>+(s.deep_min/60).toFixed(2)),backgroundColor:'#4A6CF7',stack:'s'},{label:'Léger',data:sl.map(s=>+(s.light_min/60).toFixed(2)),backgroundColor:'#818CF8',stack:'s'},{label:'REM',data:sl.map(s=>+(s.rem_min/60).toFixed(2)),backgroundColor:'#C4B5FD',stack:'s'},{label:'Éveil',data:sl.map(s=>+(s.awake_min/60).toFixed(2)),backgroundColor:'#FCA5A5',stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10}},tooltip:{callbacks:{label:c=>c.raw>0?`${c.dataset.label} : ${fmtH(c.raw)}`:null,footer:items=>{const tot=slTotals[items[0].dataIndex];return tot>0?`Total : ${fmtH(tot)}`:'';}}}},scales:{x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>fmtH(v)},grid:{color:'var(--surface2)'}}}}});
 }
 
 // ══════════════════════════════════════════

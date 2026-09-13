@@ -44,6 +44,12 @@
 .score-breakdown{display:flex;gap:20px;margin-top:10px;flex-wrap:wrap}
 .score-item-val{font-size:15px;font-weight:700}
 .score-item-lbl{font-size:10px;color:var(--text2)}
+.score-lines{display:flex;flex-direction:column;gap:5px;margin-top:12px}
+.score-line{display:flex;align-items:baseline;gap:8px;font-size:13px;line-height:1.4}
+.score-line-ic{width:20px;text-align:center;flex-shrink:0}
+.score-line-lbl{color:var(--text2);min-width:92px}
+.score-line-val{font-weight:700}
+.score-line-sub{color:var(--text2);font-size:12px}
 
 /* ── RECORDS ── */
 .records-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px}
