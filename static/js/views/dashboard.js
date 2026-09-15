@@ -210,18 +210,27 @@ function renderHeatmap(W){
 // ══════════════════════════════════════════
 // COMPARISON
 // ══════════════════════════════════════════
+// N derniers jours vs les N précédents, découpés par date.
+// completeDaysOnly : la journée en cours (pas, calories partiels) est exclue,
+// la fenêtre finit alors hier. Les nuits et séances d'aujourd'hui sont complètes.
+function rollingWindows(arr,n,completeDaysOnly=false){
+  const dayStr=k=>{const d=new Date();d.setDate(d.getDate()-k);return localISO(d);};
+  const shift=completeDaysOnly?1:0;
+  const end=dayStr(shift-1), t0=dayStr(n+shift), t1=dayStr(2*n+shift);
+  // fenêtre courante : ]t0, end[   fenêtre précédente : ]t1, t0]
+  return{
+    curr:arr.filter(d=>d.date>t0&&d.date<end),
+    prev:arr.filter(d=>d.date>t1&&d.date<=t0),
+  };
+}
 function renderComparison(W,S){
   const panel=document.getElementById('compPanel');
   if(!W.length){panel.style.display='none';return;}
   panel.style.display='block';
-  document.getElementById('compBadge').textContent=`${curPeriod}j vs ${curPeriod}j précédents`;
+  document.getElementById('compBadge').textContent=`${curPeriod} derniers jours vs ${curPeriod} précédents`;
 
-  // Découpage par DATE et non par position dans le tableau : avec des jours
-  // manquants, « les N dernières entrées » ne correspondaient à aucune période réelle.
-  const dayStr=n=>{const d=new Date();d.setDate(d.getDate()-n);return localISO(d);};
-  const t0=dayStr(curPeriod), t1=dayStr(curPeriod*2);
-  const inCurr=arr=>arr.filter(d=>d.date>t0), inPrev=arr=>arr.filter(d=>d.date>t1&&d.date<=t0);
-  const curr=inCurr(W), prev=inPrev(W), currS=inCurr(S), prevS=inPrev(S);
+  const {curr,prev}=rollingWindows(W,curPeriod,true);
+  const {curr:currS,prev:prevS}=rollingWindows(S,curPeriod);
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]!=null&&d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0};
 
   const nf=(v,dec)=>v.toLocaleString('fr-FR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
@@ -331,23 +340,12 @@ function renderAlerts(W,S,A){
 // ══════════════════════════════════════════
 function renderWeeklyReport(W,S,A){
   const panel=document.getElementById('weeklyPanel');if(!panel)return;
-  // Lundi de la semaine actuelle
-  const today=new Date();
-  const dow=today.getDay();
-  const thisMonday=new Date(today);
-  thisMonday.setDate(today.getDate()-(dow===0?6:dow-1));
-  thisMonday.setHours(0,0,0,0);
-  const lastMonday=new Date(thisMonday);lastMonday.setDate(thisMonday.getDate()-7);
-
-  const inRange=(arr,from,to)=>arr.filter(d=>d.date>=localISO(from)&&d.date<localISO(to));
+  // 7 derniers jours glissants vs les 7 d'avant : une semaine calendaire
+  // comparait un lundi seul à une semaine pleine.
+  const {curr:thisW,prev:prevW}=rollingWindows(W,7,true);
+  const {curr:thisSl,prev:prevSl}=rollingWindows(S,7);
+  const {curr:thisA,prev:prevA}=rollingWindows(A,7);
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0;};
-
-  const thisW=inRange(W,thisMonday,new Date(thisMonday.getTime()+7*86400000));
-  const prevW=inRange(W,lastMonday,thisMonday);
-  const thisSl=inRange(S,thisMonday,new Date(thisMonday.getTime()+7*86400000));
-  const prevSl=inRange(S,lastMonday,thisMonday);
-  const thisA=inRange(A,thisMonday,new Date(thisMonday.getTime()+7*86400000));
-  const prevA=inRange(A,lastMonday,thisMonday);
   const thisRuns=thisA.filter(a=>a.type==='running');
   const prevRuns=prevA.filter(a=>a.type==='running');
 
@@ -355,7 +353,7 @@ function renderWeeklyReport(W,S,A){
     {lbl:'Pas / jour',curr:avg(thisW,'steps'),prev:avg(prevW,'steps'),fmt:v=>Math.round(v).toLocaleString('fr-FR'),lower:false},
     {lbl:'Sommeil',curr:avg(thisSl,'sleepTotal_min'),prev:avg(prevSl,'sleepTotal_min'),fmt:v=>fmt(Math.round(v)),lower:false},
     {lbl:'Sorties course',curr:thisRuns.length,prev:prevRuns.length,fmt:v=>v+' séances',lower:false},
-    {lbl:'Km courus',curr:thisRuns.reduce((s,a)=>s+(a.distance_km||0),0),prev:prevRuns.reduce((s,a)=>s+(a.distance_km||0),0),fmt:v=>v.toFixed(1)+' km',lower:false},
+    {lbl:'Km courus',curr:thisRuns.reduce((s,a)=>s+(a.distance_km||0),0),prev:prevRuns.reduce((s,a)=>s+(a.distance_km||0),0),fmt:v=>v.toLocaleString('fr-FR',{minimumFractionDigits:1,maximumFractionDigits:1})+' km',lower:false},
     {lbl:'Stress moy.',curr:avg(thisW.filter(d=>d.stress>=0),'stress'),prev:avg(prevW.filter(d=>d.stress>=0),'stress'),fmt:v=>Math.round(v)||'—',lower:true},
     {lbl:'FC repos moy.',curr:avg(thisW.filter(d=>rhr(d)),d=>rhr(d)),prev:avg(prevW.filter(d=>rhr(d)),d=>rhr(d)),fmt:v=>Math.round(v)?Math.round(v)+' bpm':'—',lower:true},
   ];
@@ -364,6 +362,8 @@ function renderWeeklyReport(W,S,A){
   metrics[5].curr=avgRHR(thisW);metrics[5].prev=avgRHR(prevW);
 
   if(!thisW.length&&!thisA.length){panel.style.display='none';return;}
+  const badge=document.getElementById('weeklyBadge');
+  if(badge) badge.textContent='7 derniers jours vs 7 précédents';
   panel.style.display='block';
   const grid=document.getElementById('weeklyGrid');if(!grid)return;
   grid.innerHTML=metrics.map(m=>{

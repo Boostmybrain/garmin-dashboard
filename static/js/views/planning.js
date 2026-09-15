@@ -15,8 +15,7 @@ async function loadTrainingPlan(){
       trainingPlan = j.sessions;
       renderTodayWidget();
       if(curView==='planning') renderWeekPlan();
-      const lbl = document.getElementById('planWeekLabel');
-      if(lbl) lbl.textContent = j.week_label || '';
+      if(curView==='nutrition' && typeof renderDayTotals==='function') renderDayTotals(nutriMeals);
     }
   }catch(e){}
 }
@@ -26,35 +25,63 @@ function getTodaySession(){
   return trainingPlan.find(s => s.day_num===now.getDate() && s.month===now.getMonth()+1) || null;
 }
 
-// Convertit le texte brut en HTML stylisé (comme les photos)
+// Découpe le texte d'une séance en blocs logiques.
+// Le texte arrive coupé à ~90 caractères par ligne : une ligne indentée, ou qui
+// suit une ligne longue sans finir une phrase, prolonge la ligne précédente au
+// lieu de devenir une nouvelle puce.
+const _EMOJI_START = /^\p{Extended_Pictographic}/u;
+const _BULLET      = /^[•·\-–—*]\s+/;
+const _LABEL       = /^(Repos|Retour|Bloc|Objectif|Intensité|Priorité)/i;
+
+function parseSessionBlocks(content){
+  const blocks = [];
+  let prevRaw = '';
+  for(const raw of content.split('\n')){
+    const line = raw.trim();
+    if(!line){ blocks.push({kind:'gap'}); prevRaw=''; continue; }
+    const last = blocks[blocks.length-1];
+    const prev = prevRaw.trim();
+    const isNewStart = _EMOJI_START.test(line) || _BULLET.test(line);
+    const endsSentence = /[.!?:»)]$/.test(prev) && /^[A-ZÀ-ÖØ-Þ0-9«]/.test(line);
+    const continues = last && last.kind!=='gap' && !isNewStart && (
+      /^\s{2,}/.test(raw) || (prev.length>=70 && !endsSentence) ||
+      (prev.length>=50 && /^[a-zà-öø-ÿ]/.test(line) && !/[.!?:]$/.test(prev))
+    );
+    prevRaw = raw;
+    if(continues){
+      // ligne courte suivie d'une majuscule : vrai retour à la ligne voulu
+      const sep = (/^[a-zà-öø-ÿ(]/.test(line) || prev.length>=75) ? ' ' : '<br>';
+      last.text += sep + line;
+      continue;
+    }
+    if(_EMOJI_START.test(line))  blocks.push({kind:'head',  text:line});
+    else if(_LABEL.test(line))   blocks.push({kind:'label', text:line});
+    else                         blocks.push({kind:'item',  text:line.replace(_BULLET,'')});
+  }
+  return blocks;
+}
+
+// Convertit le texte brut en HTML stylisé
 function formatSessionHtml(content){
-  const lines = content.split('\n');
   let html = '';
   let inBlock = false;
-  for(const raw of lines){
-    const line = raw.trim();
-    if(!line){
-      if(inBlock){ html+='</ul>'; inBlock=false; }
-      html+='<div style="height:8px"></div>';
+  const closeList = ()=>{ if(inBlock){ html+='</ul>'; inBlock=false; } };
+  for(const b of parseSessionBlocks(content)){
+    if(b.kind==='gap'){ closeList(); html+='<div style="height:8px"></div>'; continue; }
+    if(b.kind==='head'){
+      closeList();
+      html+=`<div style="font-size:15px;font-weight:700;margin:14px 0 6px;line-height:1.5">${b.text}</div>`;
       continue;
     }
-    // Section headers = lignes avec emoji en début
-    if(/^[🏋️🔥⚡🧘🏃🎯⚠️👉🥤🟣🟢🔴🟡⚪🟠]/.test(line)){
-      if(inBlock){ html+='</ul>'; inBlock=false; }
-      html+=`<div style="font-size:15px;font-weight:700;margin:14px 0 6px;display:flex;align-items:center;gap:6px">${line}</div>`;
+    if(b.kind==='label'){
+      closeList();
+      html+=`<div style="font-size:13px;font-weight:600;color:#9CA3AF;margin-top:10px">${b.text}</div>`;
       continue;
     }
-    // Séparateurs texte (Repos :, Retour au calme, etc.)
-    if(/^(Repos|Retour|Bloc|Objectif|Intensité|Priorité)/i.test(line)){
-      if(inBlock){ html+='</ul>'; inBlock=false; }
-      html+=`<div style="font-size:13px;font-weight:600;color:#9CA3AF;margin-top:10px">${line}</div>`;
-      continue;
-    }
-    // Items de liste
     if(!inBlock){ html+='<ul style="margin:4px 0 4px 18px;list-style:disc">'; inBlock=true; }
-    html+=`<li style="font-size:14px;line-height:1.7">${line}</li>`;
+    html+=`<li style="font-size:14px;line-height:1.7">${b.text}</li>`;
   }
-  if(inBlock) html+='</ul>';
+  closeList();
   return html;
 }
 
@@ -65,14 +92,12 @@ function renderTodayWidget(){
   if(!_todaySession){ wrap.innerHTML=''; return; }
   const s = _todaySession;
 
-  // Aperçu : 5 premières lignes non vides
-  const previewLines = s.content.split('\n').filter(l=>l.trim()).slice(0,5);
-  const previewHtml = previewLines.map(l=>{
-    const t = l.trim();
-    if(/^[🏋️🔥⚡🧘🏃🎯⚠️👉🥤]/.test(t))
-      return `<div style="font-weight:700;margin-top:6px">${t}</div>`;
-    return `<div style="font-size:13px;color:var(--text2);padding-left:8px">${t}</div>`;
-  }).join('');
+  // Aperçu : 4 premiers blocs
+  const previewHtml = parseSessionBlocks(s.content).filter(b=>b.kind!=='gap').slice(0,4).map(b=>
+    b.kind==='head'
+      ? `<div style="font-weight:700;margin-top:6px">${b.text}</div>`
+      : `<div style="font-size:13px;color:var(--text2);padding-left:8px">${b.text}</div>`
+  ).join('');
 
   wrap.innerHTML=`
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
@@ -107,28 +132,29 @@ function toggleTodayExpand(){
 let _selectedPlanIdx = -1;
 let _draggedSessionIdx = -1;   // index dans trainingPlan de la session en cours de drag
 
-// ── Génère les jours à afficher : couvre TOUTES les sessions du plan
-// Si aucun plan : 7 jours à partir d'aujourd'hui
+// Date réelle d'une séance (le plan ne stocke que jour + mois)
+function sessionDate(s, today){
+  const yr = today.getFullYear();
+  // Plan qui chevauche déc/jan
+  const yr2 = (s.month < today.getMonth()+1-6) ? yr+1 : yr;
+  return new Date(yr2, s.month-1, s.day_num);
+}
+
+// ── Génère les jours à afficher : d'aujourd'hui à J+13 au minimum,
+// étendu jusqu'à la dernière séance du plan. Les jours passés sont masqués.
 function get7Days(){
   const DAY_FR=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const today = new Date();
   today.setHours(0,0,0,0);
 
-  let startDate = new Date(today);
+  const startDate = new Date(today);
   let endDate   = new Date(today);
-  endDate.setDate(today.getDate() + 6); // minimum 7 jours
+  endDate.setDate(today.getDate() + 13); // 2 semaines minimum
 
-  // Si un plan est chargé, étendre la fenêtre pour couvrir toutes les sessions
-  if(trainingPlan.length){
-    const yr = today.getFullYear();
-    trainingPlan.forEach(s=>{
-      // Gestion simple : même année courante (ajustement si plan chevauche déc/jan)
-      const yr2 = (s.month < today.getMonth()+1-6) ? yr+1 : yr;
-      const d = new Date(yr2, s.month-1, s.day_num);
-      if(d < startDate) startDate = new Date(d);
-      if(d > endDate)   endDate   = new Date(d);
-    });
-  }
+  trainingPlan.forEach(s=>{
+    const d = sessionDate(s, today);
+    if(d > endDate) endDate = new Date(d);
+  });
 
   const days=[];
   const cur = new Date(startDate);
@@ -252,11 +278,17 @@ function renderWeekPlan(){
     </div>`;
   }).join('');
 
-  // Sélectionner aujourd'hui si une session existe, sinon la première
-  const today=new Date();
-  let defaultIdx=trainingPlan.findIndex(s=>s.day_num===today.getDate()&&s.month===today.getMonth()+1);
-  if(defaultIdx<0) defaultIdx=0;
-  if(_selectedPlanIdx>=0 && trainingPlan[_selectedPlanIdx]) {
+  const lbl = document.getElementById('planWeekLabel');
+  if(lbl){
+    const f = d=>d.date.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    lbl.textContent = `Du ${f(days7[0])} au ${f(days7[days7.length-1])}`;
+  }
+
+  // Sélectionner aujourd'hui si une session existe, sinon la prochaine
+  const today=new Date(); today.setHours(0,0,0,0);
+  const upcoming=trainingPlan.map((s,i)=>({i,d:sessionDate(s,today)})).filter(x=>x.d>=today).sort((a,b)=>a.d-b.d);
+  const defaultIdx=upcoming.length?upcoming[0].i:0;
+  if(_selectedPlanIdx>=0 && trainingPlan[_selectedPlanIdx] && sessionDate(trainingPlan[_selectedPlanIdx],today)>=today) {
     selectPlanDay(_selectedPlanIdx);
   } else {
     selectPlanDay(defaultIdx);
@@ -325,8 +357,6 @@ async function uploadTrainingPlan(){
     closePlanModal();
     renderWeekPlan();
     renderTodayWidget();
-    const lbl = document.getElementById('planWeekLabel');
-    if(lbl) lbl.textContent = j.week_label||'';
   }catch(e){
     errEl.textContent='❌ Erreur serveur'; errEl.style.display='block';
   }

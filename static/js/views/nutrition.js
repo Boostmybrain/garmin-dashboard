@@ -2,28 +2,132 @@
 
 const MACRO_COLORS={cal:'#FF6B35',prot:'#4A6CF7',gluc:'#22C55E',lip:'#F59E0B'};
 
-// ── Objectifs par type de journée
-const DAY_TARGETS={
-  dur:          {cal:2900,prot:150,gluc:360,lip:75},
-  intermediaire:{cal:2700,prot:150,gluc:300,lip:72},
-  facile:       {cal:2500,prot:150,gluc:240,lip:70},
-};
-const LS_DAY_TYPE='nutri_day_type_v1';
-let currentDayType=localStorage.getItem(LS_DAY_TYPE)||'intermediaire';
+// ══════════════════════════════════════════
+// NUTRITION — OBJECTIFS DU JOUR
+// Calculés depuis la séance du jour (plan ou activité faite) et le dernier poids.
+// ══════════════════════════════════════════
+const WEIGHT_GOAL   ={kg:74, date:'2026-11-01'};   // marathon de Toulouse
+const MAX_LOSS_WEEK =0.5;      // kg/semaine : au-delà, le bloc marathon et le tendon trinquent
+const BASE_KCAL     =2350;     // dépense Garmin médiane d'un jour sans séance (juin–sept. 2026)
+const KCAL_PER_KG   =7700;
 
-function selectDayType(type){
-  currentDayType=type;
-  localStorage.setItem(LS_DAY_TYPE,type);
-  document.querySelectorAll('.day-type-btn').forEach(btn=>{
-    btn.classList.toggle('active',btn.dataset.type===type);
-  });
-  renderDayTotals(nutriMeals);
+// Déficit visé et plancher de glucides (g/kg) selon le type de journée
+const DAY_TYPES={
+  repos: {label:'Repos',              emoji:'🛌', col:'#6B7280', deficit:700, carbs:2.5},
+  ef:    {label:'Endurance',          emoji:'🏃', col:'#22C55E', deficit:600, carbs:3},
+  renfo: {label:'Renfo / Hyrox',      emoji:'💪', col:'#F97316', deficit:600, carbs:3},
+  cle:   {label:'Séance clé',         emoji:'🔥', col:'#EF4444', deficit:350, carbs:5},
+  longue:{label:'Sortie longue',      emoji:'⛰️', col:'#8B5CF6', deficit:100, carbs:6},
+  charge:{label:'Recharge glucidique',emoji:'🍝', col:'#0EA5E9', deficit:0,   carbs:9},
+};
+
+function currentWeight(){
+  const w=((appData&&appData.weight)||[]).filter(x=>x.weight_kg);
+  return w.length?w[w.length-1]:null;
 }
 
-function syncDayTypeBtns(){
-  document.querySelectorAll('.day-type-btn').forEach(btn=>{
-    btn.classList.toggle('active',btn.dataset.type===currentDayType);
-  });
+// Type de journée et dépense de la séance à partir du titre du plan
+function classifySession(s,weight){
+  if(!s) return{type:'repos',kcal:0,src:'Pas de séance au plan'};
+  const t=s.title||'';
+  const num=v=>parseFloat(v.replace(',','.'));
+  // Distance : « Total : environ 12 km » dans le contenu, sinon « 4 × 2 km » (+ 4 km
+  // d'échauffement et retour au calme), sinon la plus grande distance du titre.
+  const total=(s.content||'').match(/total[^\n]*?(\d+(?:[.,]\d+)?)\s*km/i);
+  const reps=t.match(/(\d+)\s*[×x]\s*(\d+(?:[.,]\d+)?)\s*km/i);
+  const kms=[...t.matchAll(/(\d+(?:[.,]\d+)?)\s*km/gi)].map(m=>num(m[1]));
+  const km=!kms.length?0:total?num(total[1]):reps?+reps[1]*num(reps[2])+4:Math.max(...kms);
+  const min=(t.match(/(\d+)\s*min/i)||[])[1];
+  let type='ef',kcal=0;
+  if(/déménagement/i.test(t))                     return{type:'cle',kcal:800,src:t};  // journée entière de port de charges : on mange
+  if(/^🔄|repos/i.test(t)&&!/🏃/.test(t))          return{type:'repos',kcal:/actif|cartons/i.test(t)?100:0,src:t};
+  if(/longue/i.test(t)||km>=18)                   type='longue';
+  else if(/séance clé|fraction|allure|seuil|vma|\d\s*[×x]\s*\d/i.test(t)&&km) type='cle';
+  else if(/renfo|hyrox|💪/i.test(t)&&!km)          {type='renfo'; kcal=(min?+min:45)*7;}
+  if(km) kcal+=Math.round(km*weight*0.8);          // ≈ 0,8 kcal/kg/km au-delà du métabolisme de base
+  if(/renfo|hyrox/i.test(t)&&km) kcal+=250;        // renfo + footing le même jour
+  return{type,kcal,src:t};
+}
+
+function computeDayTargets(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayStr=localISO(today);
+  const w=currentWeight();
+  const weight=w?w.weight_kg:78.5;
+  const session=(typeof getTodaySession==='function')?getTodaySession():null;
+  let {type,kcal,src}=classifySession(session,weight);
+
+  // Séance déjà faite : la dépense réelle Garmin remplace l'estimation
+  const done=((appData&&appData.activities)||[]).filter(a=>a.date===todayStr);
+  const doneKcal=done.reduce((s,a)=>s+(a.calories||0),0);
+  if(doneKcal) kcal=Math.round(doneKcal*0.85);     // retire la part du métabolisme de base
+
+  // Rythme : on vise l'objectif, sans dépasser MAX_LOSS_WEEK
+  const goal=new Date(WEIGHT_GOAL.date+'T00:00:00');
+  const daysLeft=Math.round((goal-today)/86400000);
+  const needWeek=daysLeft>0?(weight-WEIGHT_GOAL.kg)/daysLeft*7:0;
+  const rateWeek=Math.max(0,Math.min(MAX_LOSS_WEEK,needWeek));
+  let deficit=DAY_TYPES[type].deficit*(MAX_LOSS_WEEK?rateWeek/MAX_LOSS_WEEK:0);
+  if(daysLeft<=3&&daysLeft>=1){type='charge';deficit=0;}       // J-3 → J-1 : recharge
+  else if(daysLeft<=10) deficit/=2;                              // semaine d'affûtage
+
+  const cfg=DAY_TYPES[type];
+  const tdee=BASE_KCAL+kcal;
+  const prot=Math.round(weight*2.0);    // 2 g/kg : protège le muscle en déficit
+  const lip =Math.round(weight*0.8);
+  const carbFloor=Math.round(weight*cfg.carbs);
+  let cal=Math.round(tdee-deficit);
+  let gluc=Math.round((cal-prot*4-lip*9)/4);
+  if(gluc<carbFloor){gluc=carbFloor;cal=prot*4+lip*9+gluc*4;}
+  const round=(v,n)=>Math.round(v/n)*n;
+  return{type,cfg,weight,weightDate:w?w.date:null,src,kcal,tdee,
+    deficit:Math.max(0,tdee-cal),needWeek,rateWeek,daysLeft,
+    targets:{cal:round(cal,10),prot:round(prot,5),gluc:round(gluc,5),lip:round(lip,5)}};
+}
+
+function renderNutriPlanCard(p){
+  const el=document.getElementById('nutriPlanCard');if(!el)return;
+  const nf=(v,d=0)=>v.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  // Projection au rythme retenu (déficit moyen d'une semaine type ≈ 85 % du rythme visé)
+  const projected=p.weight-p.rateWeek*0.85*Math.max(0,p.daysLeft-3)/7;
+  let note;
+  if(p.type==='charge') note='Recharge glucidique avant le marathon : +1 à 1,5 kg sur la balance, c\'est du glycogène et de l\'eau, pas du gras.';
+  else if(p.needWeek>MAX_LOSS_WEEK) note=`${WEIGHT_GOAL.kg} kg le ${fmtDate(WEIGHT_GOAL.date)} demanderait −${nf(p.needWeek,2)} kg/semaine. En plein bloc marathon, avec un tendon qui cicatrise, je plafonne à −${nf(MAX_LOSS_WEEK,1)} kg/semaine. Projection réaliste : ~${nf(projected,1)} kg avant la recharge des 3 derniers jours.`;
+  else if(p.needWeek<=0) note='Objectif de poids atteint : les apports visent l\'équilibre.';
+  else note=`Rythme visé −${nf(p.rateWeek,2)} kg/semaine : objectif ${WEIGHT_GOAL.kg} kg tenable.`;
+  el.innerHTML=`
+    <div class="npc-head">
+      <div class="npc-title">🎯 Objectif du jour</div>
+      <span class="npc-type" style="background:${p.cfg.col}20;color:${p.cfg.col}">${p.cfg.emoji} ${p.cfg.label}</span>
+    </div>
+    <div class="npc-rows">
+      <div class="npc-row"><b>${nf(p.weight,1)} kg</b><span>Poids${p.weightDate?' · '+fmtDate(p.weightDate):''} → ${WEIGHT_GOAL.kg} kg</span></div>
+      <div class="npc-row"><b>${nf(p.tdee)} kcal</b><span>Dépense estimée (séance ${nf(p.kcal)} kcal)</span></div>
+      <div class="npc-row"><b>−${nf(p.deficit)} kcal</b><span>Déficit du jour</span></div>
+      <div class="npc-row"><b>J-${p.daysLeft}</b><span>Marathon de Toulouse</span></div>
+    </div>
+    <div class="npc-note">Séance : ${p.src}<br>${note}</div>
+    <div class="npc-weight">
+      <label for="npcWeightInput">Poids du jour</label>
+      <input id="npcWeightInput" type="number" step="0.1" min="40" max="150" inputmode="decimal" placeholder="${nf(p.weight,1)}">
+      <span>kg</span>
+      <button onclick="saveManualWeight()">Enregistrer</button>
+    </div>`;
+}
+
+async function saveManualWeight(){
+  const inp=document.getElementById('npcWeightInput');
+  const kg=parseFloat((inp?.value||'').replace(',','.'));
+  if(!(kg>40&&kg<150)){inp?.focus();return;}
+  try{
+    const r=await fetch('/api/weight/manual',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({weight_kg:kg,date:localISO(new Date())})});
+    const j=await r.json();
+    if(!j.ok){alert('❌ '+(j.error||'Erreur'));return;}
+    appData.weight=j.weight;
+    renderDayTotals(nutriMeals);
+    renderWeightChart();
+  }catch{alert('❌ Serveur inaccessible.');}
 }
 
 // ── Formateur heure depuis ISO string
@@ -225,7 +329,9 @@ function renderNutriResult(n, containerId){
 function renderDayTotals(meals){
   const tot={cal:0,prot:0,gluc:0,lip:0};
   meals.forEach(m=>{tot.cal+=m.calories||0;tot.prot+=m.proteines||0;tot.gluc+=m.glucides||0;tot.lip+=m.lipides||0;});
-  const targets=DAY_TARGETS[currentDayType]||DAY_TARGETS.intermediaire;
+  const plan=computeDayTargets();
+  renderNutriPlanCard(plan);
+  const targets=plan.targets;
   const isDark=document.documentElement.getAttribute('data-theme')==='dark';
   const emptyCol=isDark?'#334155':'#E5E7EB';
   const RED='#EF4444';
@@ -289,8 +395,6 @@ function renderDayTotals(meals){
       }
     });
   });
-
-  syncDayTypeBtns();
 }
 
 // ── Historique repas

@@ -1031,7 +1031,7 @@ def api_coach_data():
     })
 
 
-HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano','Mollets']
+HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Calories Nutrition','Mollets']
 
 @app.route("/api/habits")
 def api_habits_get():
@@ -1395,18 +1395,35 @@ def api_add_weight():
 
     weight_kg = round(float(weight_kg), 2)
     date = body.get("date", datetime.now().strftime("%Y-%m-%d"))
+    _store_weight(date, weight_kg, body.get("bmi"))
+    return jsonify({"ok": True, "weight_kg": weight_kg, "date": date})
 
+
+def _store_weight(date: str, weight_kg: float, bmi=None) -> list:
+    """Enregistre (ou remplace) la pesée du jour. Retourne la liste des pesées."""
     data = load_from_db()
     if not data:
         data = {"wellness": [], "activities": [], "sleep": [], "customer": {}, "weight": []}
-
     weight_list = [w for w in data.get("weight", []) if w.get("date") != date]
-    weight_list.append({"date": date, "weight_kg": weight_kg, "bmi": body.get("bmi")})
+    weight_list.append({"date": date, "weight_kg": weight_kg, "bmi": bmi})
     weight_list.sort(key=lambda x: x["date"])
     data["weight"] = weight_list[-365:]
     save_to_db(data)
+    return data["weight"]
 
-    return jsonify({"ok": True, "weight_kg": weight_kg, "date": date})
+
+@app.route("/api/weight/manual", methods=["POST"])
+def api_add_weight_manual():
+    """Pesée saisie à la main dans la vue Nutrition."""
+    body = request.get_json(silent=True) or {}
+    date = body.get("date") or datetime.now().strftime("%Y-%m-%d")
+    try:
+        weight_kg = round(float(body.get("weight_kg")), 1)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Poids invalide"}), 400
+    if not (40 < weight_kg < 150) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+        return jsonify({"ok": False, "error": "Poids ou date invalide"}), 400
+    return jsonify({"ok": True, "weight": _store_weight(date, weight_kg)})
 
 
 @app.route("/api/meals-history")

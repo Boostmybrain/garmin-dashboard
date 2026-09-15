@@ -1,6 +1,6 @@
 // ── habitudes.js — Tracker d'habitudes quotidiennes ──
 
-const HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Piano','Mollets'];
+const HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Calories Nutrition','Mollets'];
 const LS_HABITS   = 'garmin_habits_v1';
 let _habitPeriod  = 7;
 let _habitsCache  = null; // cache local pour éviter des rechargements inutiles
@@ -135,7 +135,7 @@ function renderHabitudes(){
         const rowPct   = Math.round(rowDone / dates.length * 100);
         const emoji    = {
           'Sport':'🏃','Yoga':'🧘','Lecture':'📚',
-          'Italien':'🇮🇹','Complément alimentaire':'💊','Piano':'🎹','Mollets':'🦵'
+          'Italien':'🇮🇹','Complément alimentaire':'💊','Calories Nutrition':'🍽️','Mollets':'🦵'
         }[habit]||'✦';
         return `
           <div class="hg-label">

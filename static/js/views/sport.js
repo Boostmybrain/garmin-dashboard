@@ -46,16 +46,21 @@ function renderPRCards(A){
   const targets=[{dist:5,label:'5 km'},{dist:10,label:'10 km'},{dist:21.0975,label:'Semi-marathon'}];
   const pFmt=v=>{const s=Math.round((v%1)*60);return s===60?`${Math.floor(v)+1}'00"`:`${Math.floor(v)}'${String(s).padStart(2,'0')}"`};
   const tFmt=min=>{const h=Math.floor(min/60),m=Math.floor(min%60),s=Math.round((min*60)%60);return h>0?`${h}h${String(m).padStart(2,'0')}'${String(s).padStart(2,'0')}"`:`${m}'${String(s).padStart(2,'0')}"`; };
+  // Seules les sorties au moins aussi longues que la distance comptent : l'allure
+  // moyenne d'une sortie de 12 km est un temps réellement tenu sur 10 km.
+  // Pas de chrono au km près dans les données : c'est une borne, pas un vrai PR.
   const cards=targets.map(t=>{
-    const matching=runs.filter(r=>r.distance_km>=t.dist*0.7&&r.distance_km<=t.dist*1.3);
+    const matching=runs.filter(r=>r.distance_km>=t.dist*0.98);
     if(!matching.length)return null;
     const best=matching.reduce((b,r)=>{const p=r.duration_min/r.distance_km;return p<b.pace?{pace:p,r}:b;},{pace:Infinity,r:null});
     if(!best.r)return null;
-    return{label:t.label,time:tFmt(best.pace*t.dist),pace:pFmt(best.pace)+'/km',date:fmtDate(best.r.date)};
+    const src=`${best.r.distance_km.toLocaleString('fr-FR',{maximumFractionDigits:1})} km${best.r.avgHR?` · FC ${Math.round(best.r.avgHR)}`:''}`;
+    return{label:t.label,time:tFmt(best.pace*t.dist),pace:pFmt(best.pace)+'/km',date:`${fmtDate(best.r.date)} · ${src}`};
   }).filter(Boolean);
   if(!cards.length){panel.style.display='none';return;}
   panel.style.display='block';
-  document.getElementById('prGrid').innerHTML=cards.map(c=>`<div class="pr-card"><div class="pr-dist">${c.label}</div><div class="pr-time">${c.time}</div><div class="pr-pace">${c.pace}</div><div class="pr-date">${c.date}</div></div>`).join('');
+  document.getElementById('prGrid').innerHTML=cards.map(c=>`<div class="pr-card"><div class="pr-dist">${c.label}</div><div class="pr-time">${c.time}</div><div class="pr-pace">${c.pace}</div><div class="pr-date">${c.date}</div></div>`).join('')
+    +`<p class="pr-note">Meilleure allure moyenne sur une sortie au moins aussi longue. Tes sorties sont surtout en endurance : ce sont des temps tenus à l'entraînement, pas ton niveau en course.</p>`;
 }
 
 // ══════════════════════════════════════════

@@ -32,18 +32,16 @@ function renderBedtimeChart(S){
     return [b, w>b ? w : w+24];
   });
 
-  // Calculer les bornes Y (heures min/max avec marge)
+  // Bornes Y sur des heures pleines : avec une borne à x,5 h, les graduations
+  // tombaient sur les demi-heures et « 23h » était affiché à 22h30.
   const allVals=barData.filter(Boolean).flat();
-  const yMin=Math.max(18, Math.floor(Math.min(...allVals))-0.5);
-  const yMax=Math.min(36, Math.ceil(Math.max(...allVals))+0.5);
+  const yMin=Math.max(18, Math.floor(Math.min(...allVals)));
+  const yMax=Math.min(36, Math.ceil(Math.max(...allVals)));
 
   // Formateur axe Y : heures normalisées → "HHh"
-  const tickFmt=v=>{const h=Math.round(v)%24; return`${String(h).padStart(2,'0')}h`;};
+  const tickFmt=v=>Number.isInteger(v)?`${String(v%24).padStart(2,'0')}h`:'';
 
-  dc('bedtimeChart');
-  const canvas=document.getElementById('bedtimeChart');
-  if(!canvas) return;
-  charts['bedtimeChart']=new Chart(canvas,{
+  mkChart('bedtimeChart',{
     type:'bar',
     data:{
       labels,
@@ -104,6 +102,7 @@ function renderBedtimeChart(S){
     }
   });
 }
+
 
 // ══════════════════════════════════════════
 // RENDER SOMMEIL
