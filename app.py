@@ -1264,7 +1264,7 @@ def api_analyze_meal():
         "ÉTAPE 4 — TOTAUX\n"
         "Additionne chaque colonne et vérifie la cohérence (calories = P×4 + G×4 + L×9).\n\n"
         "ÉTAPE 5 — JSON FINAL\n"
-        "Termine ta réponse avec ce bloc JSON (et RIEN après) :\n"
+        "Termine ta réponse avec ce bloc JSON (et RIEN après). Valeurs chiffrees ENTIERES, sans decimale :\n"
         "```json\n"
         '{"description":"Nom précis du repas","calories":520,"proteines":32,"glucides":58,'
         '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
@@ -1356,7 +1356,7 @@ def api_analyze_meal_text():
         "ÉTAPE 4 — TOTAUX\n"
         "Additionne et vérifie : calories ≈ P×4 + G×4 + L×9.\n\n"
         "ÉTAPE 5 — JSON FINAL\n"
-        "Termine avec ce bloc JSON (rien après) :\n"
+        "Termine avec ce bloc JSON (rien après). Valeurs chiffrees ENTIERES :\n"
         "```json\n"
         '{"description":"Nom du repas","calories":520,"proteines":32,"glucides":58,'
         '"lipides":16,"fibres":5,"confiance":"haute|moyenne|basse",'
