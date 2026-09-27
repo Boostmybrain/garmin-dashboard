@@ -28,6 +28,8 @@ document.addEventListener('touchend',e=>{
 // CHART HELPERS
 // ══════════════════════════════════════════
 function dc(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
+// Nombre décimal à la française : 185,3 et non 185.3
+const nfr=(v,d=1)=>Number(v||0).toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
 // Valeur d'une variable CSS du thème (ex. cssVar('--surface2'))
 const cssVar=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 // Chart.js dessine sur un canvas et ne sait pas lire 'var(--x)' : la couleur

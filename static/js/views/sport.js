@@ -82,7 +82,7 @@ function renderSport(){
 
   document.getElementById('sp_runs').textContent=runs.length;
   document.getElementById('sp_strength').textContent=strength.length;
-  document.getElementById('sp_km').textContent=totalKm.toFixed(1)+' km';
+  document.getElementById('sp_km').textContent=nfr(totalKm)+' km';
   document.getElementById('sp_time').textContent=fmt(totalMin);
 
   // Liste complète triée par date décroissante (pas filtrée par période)
@@ -122,8 +122,8 @@ function renderVo2maxChart(A,cutoffStr){
   const last=display[display.length-1].vo2max;
   const first=display[0].vo2max;
   const diff=+(last-first).toFixed(1);
-  const diffStr=(diff>0?'+':'')+diff;
-  document.getElementById('vo2maxBadge').textContent=`${last} mL/kg/min (${diffStr})`;
+  const diffStr=(diff>0?'+':'')+nfr(diff);
+  document.getElementById('vo2maxBadge').textContent=`${nfr(last)} mL/kg/min (${diffStr})`;
   document.getElementById('vo2maxPeriodBadge').textContent=curPeriod+'j';
   const vals=display.map(p=>p.vo2max);
   const yMin=Math.max(0,Math.min(...vals)-2);
@@ -137,7 +137,13 @@ function renderVo2maxChart(A,cutoffStr){
     const futureLabels=[30,60,90].map(d=>{const dt=new Date(display[lastIdx].date);dt.setDate(dt.getDate()+d);return fmtDate(localISO(dt));});
     // Valeurs projetées (continuation de la tendance)
     const step=30/(display.length>1?(new Date(display[lastIdx].date)-new Date(display[0].date))/(display.length-1)/86400000:1);
-    const futureVals=[1,2,3].map(k=>+(reg.slope*(lastIdx+k*step)+reg.intercept).toFixed(1));
+    // Borne physiologique : au mieux ~1 point de VO2max par mois, et la
+    // régression sur une poignée de points partait sinon à +5 en 90 jours.
+    const base=vals[vals.length-1];
+    const futureVals=[1,2,3].map(k=>{
+      const raw=reg.slope*(lastIdx+k*step)+reg.intercept;
+      return +Math.max(base-k, Math.min(base+k, raw)).toFixed(1);
+    });
     // Données combinées : nulls pour les points réels, puis les projections
     const projData=Array(display.length).fill(null);
     projData[display.length-1]=vals[display.length-1]; // connecter depuis le dernier point
@@ -146,7 +152,7 @@ function renderVo2maxChart(A,cutoffStr){
     const allProj=[...projData,...futureVals];
     const projectedIn90=futureVals[2];
     const projDiff=+(projectedIn90-vals[vals.length-1]).toFixed(1);
-    document.getElementById('vo2maxBadge').textContent=`${vals[vals.length-1]} mL/kg/min → ~${projectedIn90} (${projDiff>0?'+':''}${projDiff})`;
+    document.getElementById('vo2maxBadge').textContent=`${nfr(vals[vals.length-1])} → ~${nfr(projectedIn90)} mL/kg/min en 90 j (${projDiff>0?'+':''}${nfr(projDiff)})`;
     const forecastDataset={label:'Tendance 90j',data:allProj,borderColor:'#F59E0B',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,5],pointRadius:3,tension:.4,spanGaps:true};
     // On doit reconstruire le chart avec les labels étendus
     mkChart('vo2maxChart',{type:'line',

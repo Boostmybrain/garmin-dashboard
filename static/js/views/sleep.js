@@ -167,7 +167,7 @@ function renderSleepRegularity(Sp){
   const meanB=beds.reduce((s,v)=>s+v,0)/beds.length;
   const stddev=Math.sqrt(beds.reduce((s,v)=>s+(v-meanB)**2,0)/beds.length);
   const score=Math.max(0,Math.min(10,10-stddev*2)).toFixed(1);
-  document.getElementById('sl_regularity').textContent=score;
+  document.getElementById('sl_regularity').textContent=nfr(score);
   lastSleepRegularityScore=parseFloat(score);
 }
 

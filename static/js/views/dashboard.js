@@ -57,12 +57,12 @@ function renderRunChart(id,A){
         legend:{display:false},
         tooltip:{
           callbacks:{
-            label:c=>c.raw>0?`Course ${c.datasetIndex+1} : ${c.raw} km`:null,
+            label:c=>c.raw>0?`Course ${c.datasetIndex+1} : ${nfr(c.raw)} km`:null,
             footer:items=>{
               const nz=items.filter(c=>c.raw>0);
               if(!nz.length)return'';
               const tot=nz.reduce((s,c)=>s+c.raw,0);
-              return`Total : ${tot.toFixed(1)} km  ·  ${nz.length} sortie${nz.length>1?'s':''}`;
+              return`Total : ${nfr(tot)} km  ·  ${nz.length} sortie${nz.length>1?'s':''}`;
             }
           }
         }
@@ -79,7 +79,7 @@ function actHTML(a){
   const paceStr=(a.distance_km>0&&a.duration_min>0)?
     (p=>{return Math.floor(p)+"'"+String(Math.round((p%1)*60)).padStart(2,'0')+'"'})(a.duration_min/a.distance_km)
     :'';
-  return `<div class="act-item"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}</div><div class="act-date">${fmtDate(a.date)}${a.name&&a.name!==a.type?' · '+a.name:''}</div></div><div class="act-stats">${a.distance_km>0?`<div class="act-stat"><span class="v">${a.distance_km} km</span><span class="l">Distance</span></div>`:''}<div class="act-stat"><span class="v">${a.duration_min} min</span><span class="l">Durée</span></div>${a.avgHR?`<div class="act-stat"><span class="v">${a.avgHR} bpm</span><span class="l">FC moy</span></div>`:''  }${paceStr?`<div class="act-stat"><span class="v">${paceStr}/km</span><span class="l">Allure moy</span></div>`:''  }${a.calories?`<div class="act-stat"><span class="v">${a.calories} kcal</span><span class="l">Cal dépensées</span></div>`:''}</div></div>`;
+  return `<div class="act-item"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}</div><div class="act-date">${fmtDate(a.date)}${a.name&&a.name!==a.type?' · '+a.name:''}</div></div><div class="act-stats">${a.distance_km>0?`<div class="act-stat"><span class="v">${a.distance_km.toLocaleString('fr-FR',{maximumFractionDigits:2})} km</span><span class="l">Distance</span></div>`:''}<div class="act-stat"><span class="v">${a.duration_min} min</span><span class="l">Durée</span></div>${a.avgHR?`<div class="act-stat"><span class="v">${a.avgHR} bpm</span><span class="l">FC moy</span></div>`:''  }${paceStr?`<div class="act-stat"><span class="v">${paceStr}/km</span><span class="l">Allure moy</span></div>`:''  }${a.calories?`<div class="act-stat"><span class="v">${a.calories} kcal</span><span class="l">Cal dépensées</span></div>`:''}</div></div>`;
 }
 const EMPTY=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div>`;
 
@@ -128,8 +128,16 @@ function dayAssessment(W,S,A){
   };
 }
 
+// Les données Garmin peuvent avoir plusieurs jours de retard (sync en échec,
+// montre non synchronisée) : on ne présente jamais un vieux jour comme « aujourd'hui ».
+function lastDayInfo(W){
+  const last=W.length?W[W.length-1]:{};
+  return{last, stale:!!last.date&&last.date!==localISO(new Date()), label:last.date?fmtDate(last.date):'—'};
+}
+
 function renderScore(W,S,A){
   const sc=dayAssessment(W,S,A);
+  const {stale,label:dayLbl}=lastDayInfo(W);
   document.getElementById('scoreCard').style.display='flex';
   document.getElementById('scoreVal').textContent=sc.total;
   document.getElementById('sc_sleep').textContent=sc.parts.sleep+'/30';
@@ -137,7 +145,7 @@ function renderScore(W,S,A){
   document.getElementById('sc_hr').textContent=sc.parts.hr+'/20';
   document.getElementById('sc_load').textContent=sc.parts.load+'/20';
   document.getElementById('scoreLabel').textContent=`Forme du jour : ${sc.label}`;
-  document.getElementById('scoreDesc').textContent=sc.desc;
+  document.getElementById('scoreDesc').textContent=stale?`${sc.desc} (données du ${dayLbl})`:sc.desc;
   mkChart('scoreRing',{type:'doughnut',data:{labels:['Score','Reste'],datasets:[{data:[sc.total,100-sc.total],backgroundColor:[sc.color,'var(--surface2)'],borderWidth:0,cutout:'78%'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}});
 
   // Chiffres du jour, en texte simple sous le verdict
@@ -146,8 +154,8 @@ function renderScore(W,S,A){
   const si=stressInfo(last.stress);
   const lines=[
     {ic:'😴',lbl:'Sommeil',     val:fmt(ls.sleepTotal_min),                  sub:'dernière nuit'},
-    {ic:'🔥',lbl:'Calories',    val:nb(last.calories)+' kcal',               sub:'brûlées'},
-    {ic:'👟',lbl:'Pas',         val:nb(last.steps),                          sub:'aujourd\'hui'},
+    {ic:'🔥',lbl:'Calories',    val:nb(last.calories)+' kcal',               sub:stale?`brûlées le ${dayLbl}`:'brûlées'},
+    {ic:'👟',lbl:'Pas',         val:nb(last.steps),                          sub:stale?`le ${dayLbl}`:"aujourd'hui"},
     {ic:'❤️',lbl:'FC min / max',val:(rhr(last)||'—')+' bpm',                 sub:`FC repos · max : ${last.maxHR||'—'} bpm`},
     {ic:'🧠',lbl:'Stress',      val:last.stress>=0?last.stress:'—',          sub:si.label},
   ];
@@ -317,14 +325,15 @@ function renderDashboard(){
 function renderAlerts(W,S,A){
   const panel=document.getElementById('alertsPanel');if(!panel)return;
   const alerts=[];
-  const last=W.length?W[W.length-1]:{};
+  const {last,stale,label:dayLbl}=lastDayInfo(W);
+  if(stale) alerts.push({type:'warn',msg:`Données Garmin pas à jour — dernier jour : ${dayLbl}`});
   const ls=S.length?S[S.length-1]:{};
   // Sommeil court
   if(ls.sleepTotal_min>0&&ls.sleepTotal_min<360) alerts.push({type:'warn',msg:`Sommeil court hier : ${fmt(ls.sleepTotal_min)}`});
   // Stress élevé
   if(last.stress>=0&&last.stress>70) alerts.push({type:'danger',msg:`Stress élevé : ${last.stress}/100`});
   // Peu de pas
-  if(last.steps>0&&last.steps<3000) alerts.push({type:'info',msg:`Peu de pas : ${last.steps.toLocaleString('fr-FR')}`});
+  if(!stale&&last.steps>0&&last.steps<3000) alerts.push({type:'info',msg:`Peu de pas : ${last.steps.toLocaleString('fr-FR')}`});
   // FC repos anormale
   if(rhr(last)&&W.length>=7){
     const avgRHR=Math.round(W.slice(-14).filter(d=>rhr(d)).reduce((s,d)=>s+rhr(d),0)/W.slice(-14).filter(d=>rhr(d)).length);

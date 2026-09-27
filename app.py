@@ -1122,7 +1122,30 @@ def api_import():
 # ──────────────────────────────────────────────
 # NUTRITION — HELPERS DB
 # ──────────────────────────────────────────────
+MACRO_FIELDS = ("calories", "proteines", "glucides", "lipides", "fibres")
+
+
+def _macro_int(v) -> int:
+    """Arrondit une valeur de macro à l'entier. L'IA renvoie parfois 12.399999
+    ou "12,4" : sans ça, l'app affichait douze décimales."""
+    if v is None or v == "":
+        return 0
+    try:
+        return int(round(float(str(v).replace(",", ".").strip())))
+    except (TypeError, ValueError):
+        return 0
+
+
+def round_macros(data: dict) -> dict:
+    """Normalise les macros d'une analyse IA, en place."""
+    for k in MACRO_FIELDS:
+        if k in data or k == "calories":
+            data[k] = _macro_int(data.get(k))
+    return data
+
+
 def save_meal(data: dict, image_file: str) -> int:
+    round_macros(data)
     today = datetime.now(timezone.utc)
     with sqlite3.connect(DATABASE) as c:
         cur = c.execute("""
@@ -1132,11 +1155,11 @@ def save_meal(data: dict, image_file: str) -> int:
             today.isoformat(),
             today.strftime("%Y-%m-%d"),
             data.get("description",""),
-            int(data.get("calories") or 0),
-            int(data.get("proteines") or 0),
-            int(data.get("glucides") or 0),
-            int(data.get("lipides") or 0),
-            int(data.get("fibres") or 0),
+            data.get("calories", 0),
+            data.get("proteines", 0),
+            data.get("glucides", 0),
+            data.get("lipides", 0),
+            data.get("fibres", 0),
             data.get("confiance",""),
             json.dumps(data.get("aliments",[]), ensure_ascii=False),
             image_file,

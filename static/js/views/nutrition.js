@@ -2,6 +2,10 @@
 
 const MACRO_COLORS={cal:'#FF6B35',prot:'#4A6CF7',gluc:'#22C55E',lip:'#F59E0B'};
 
+// Les macros de l'IA arrivent parfois en 12.399999999 : on n'affiche jamais
+// autre chose que des grammes entiers.
+const gr=v=>Math.round(Number(v)||0);
+
 // ══════════════════════════════════════════
 // NUTRITION — OBJECTIFS DU JOUR
 // Calculés depuis la séance du jour (plan ou activité faite) et le dernier poids.
@@ -149,8 +153,8 @@ function renderWeightChart(){
   const last=filtered[filtered.length-1].weight_kg;
   const first=filtered[0].weight_kg;
   const diff=+(last-first).toFixed(1);
-  const diffStr=(diff>0?'+':'')+diff+' kg';
-  document.getElementById('weightBadge').textContent=`${last} kg (${diffStr})`;
+  const diffStr=(diff>0?'+':'')+nfr(diff)+' kg';
+  document.getElementById('weightBadge').textContent=`${nfr(last)} kg (${diffStr})`;
 
   const vals=filtered.map(d=>d.weight_kg);
   const yMin=+(Math.min(...vals)-1).toFixed(1);
@@ -176,7 +180,7 @@ function renderWeightChart(){
       }]
     },
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} kg`}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${nfr(c.raw)} kg`}}},
       scales:{
         x:{display:true,ticks:{font:{size:9},maxTicksLimit:14,color:'#9CA3AF'},grid:{display:false}},
         y:{display:true,min:yMin,max:yMax,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>`${v} kg`},grid:{color:'var(--surface2)'}},
@@ -187,21 +191,32 @@ function renderWeightChart(){
 // ══════════════════════════════════════════
 // NUTRITION — BILAN CALORIES
 // ══════════════════════════════════════════
-function renderCalorieBalance(meals,W){
+function renderCalorieBalance(meals,W,plan){
   const card=document.getElementById('calBilanCard');if(!card)return;
-  const burned=(W&&W.length?W[W.length-1].calories:0)||0;
+  // La dépense Garmin du jour n'existe que si la montre a synchronisé aujourd'hui.
+  // Sinon on prend l'estimation (base + séance prévue) plutôt que le total d'un
+  // autre jour, qui faisait apparaître un faux déficit.
+  const todayStr=localISO(new Date());
+  const wToday=(W||[]).find(d=>d.date===todayStr);
+  const estimated=!wToday||!wToday.calories;
+  const burned=estimated?Math.round((plan&&plan.tdee)||0):wToday.calories;
   if(!burned){card.style.display='none';return;}
-  const consumed=meals.reduce((s,m)=>s+(m.calories||0),0);
-  const balance=consumed-burned;
-  const col=balance>300?'#EF4444':balance<-500?'#4A6CF7':'#22C55E';
-  const lbl=balance>300?'Excédent':balance<-500?'Déficit':'Équilibre';
+  const consumed=meals.reduce((s,m)=>s+gr(m.calories),0);
+  // En milieu de journée, « consommé − dépensé » affiche toujours un énorme
+  // déficit : ce qui compte est ce qu'il reste à manger sur l'objectif du jour.
+  const target=(plan&&plan.targets&&plan.targets.cal)||0;
+  const balance=target?target-consumed:consumed-burned;
+  const over=balance<0;
+  const col=over?'#EF4444':'#22C55E';
+  const lbl=target?(over?"Au-dessus de l'objectif":`Reste sur ${target.toLocaleString('fr-FR')} kcal`)
+                  :(balance>300?'Excédent':'Déficit');
   card.style.display='block';
   card.innerHTML=`<div class="cal-bilan-card">
-    <div class="cbc-item"><span class="cbc-val">${burned.toLocaleString('fr-FR')}</span><span class="cbc-lbl">🔥 Dépensées</span></div>
-    <div class="cbc-sep">−</div>
+    <div class="cbc-item"><span class="cbc-val">${burned.toLocaleString('fr-FR')}</span><span class="cbc-lbl">🔥 ${estimated?'Dépense estimée':'Dépensées'}</span></div>
+    <div class="cbc-sep">·</div>
     <div class="cbc-item"><span class="cbc-val">${consumed.toLocaleString('fr-FR')}</span><span class="cbc-lbl">🍽 Consommées</span></div>
-    <div class="cbc-sep">=</div>
-    <div class="cbc-item"><span class="cbc-val" style="color:${col}">${balance>0?'+':''}${balance.toLocaleString('fr-FR')}</span><span class="cbc-lbl" style="color:${col}">${lbl}</span></div>
+    <div class="cbc-sep">·</div>
+    <div class="cbc-item"><span class="cbc-val" style="color:${col}">${Math.abs(balance).toLocaleString('fr-FR')}</span><span class="cbc-lbl" style="color:${col}">${lbl}</span></div>
   </div>`;
 }
 
@@ -260,7 +275,7 @@ function renderNutriResult(n, containerId){
   if(!el)return;
   const confCls='confiance-'+(n.confiance||'basse').toLowerCase();
   const confLbl={haute:'✓ Haute confiance',moyenne:'~ Estimation moyenne',basse:'⚠ Faible confiance'}[n.confiance]||(n.confiance||'');
-  const totalKcal=(n.proteines||0)*4+(n.glucides||0)*4+(n.lipides||0)*9;
+  const totalKcal=gr(n.proteines)*4+gr(n.glucides)*4+gr(n.lipides)*9;
   const imgHtml=n.image_url
     ?`<img src="${n.image_url}" class="nutri-result-img" alt="repas">`
     :'';
@@ -282,23 +297,23 @@ function renderNutriResult(n, containerId){
       <!-- Macros -->
       <div class="macro-grid">
         <div class="macro-card">
-          <div class="macro-val" style="color:${MACRO_COLORS.cal}">${n.calories||0}</div>
+          <div class="macro-val" style="color:${MACRO_COLORS.cal}">${gr(n.calories)}</div>
           <div class="macro-unit">kcal</div>
           <div class="macro-lbl">Calories</div>
         </div>
         <div class="macro-card">
-          <div class="macro-val" style="color:${MACRO_COLORS.prot}">${n.proteines||0}g</div>
-          <div class="macro-unit">${Math.round((n.proteines||0)*4)} kcal</div>
+          <div class="macro-val" style="color:${MACRO_COLORS.prot}">${gr(n.proteines)}g</div>
+          <div class="macro-unit">${gr(n.proteines)*4} kcal</div>
           <div class="macro-lbl">Protéines</div>
         </div>
         <div class="macro-card">
-          <div class="macro-val" style="color:${MACRO_COLORS.gluc}">${n.glucides||0}g</div>
-          <div class="macro-unit">${Math.round((n.glucides||0)*4)} kcal</div>
+          <div class="macro-val" style="color:${MACRO_COLORS.gluc}">${gr(n.glucides)}g</div>
+          <div class="macro-unit">${gr(n.glucides)*4} kcal</div>
           <div class="macro-lbl">Glucides</div>
         </div>
         <div class="macro-card">
-          <div class="macro-val" style="color:${MACRO_COLORS.lip}">${n.lipides||0}g</div>
-          <div class="macro-unit">${Math.round((n.lipides||0)*9)} kcal</div>
+          <div class="macro-val" style="color:${MACRO_COLORS.lip}">${gr(n.lipides)}g</div>
+          <div class="macro-unit">${gr(n.lipides)*9} kcal</div>
           <div class="macro-lbl">Lipides</div>
         </div>
       </div>
@@ -306,13 +321,13 @@ function renderNutriResult(n, containerId){
       <div class="nutri-chart-wrap">
         <div class="nutri-donut"><canvas id="nutriDonutResult"></canvas></div>
         <div class="nutri-legend">
-          ${[['Protéines',n.proteines||0,MACRO_COLORS.prot],['Glucides',n.glucides||0,MACRO_COLORS.gluc],['Lipides',n.lipides||0,MACRO_COLORS.lip]]
+          ${[['Protéines',gr(n.proteines),MACRO_COLORS.prot],['Glucides',gr(n.glucides),MACRO_COLORS.gluc],['Lipides',gr(n.lipides),MACRO_COLORS.lip]]
             .map(([lbl,g,col])=>`<div class="nutri-leg-row">
               <div class="nutri-leg-dot" style="background:${col}"></div>
               <span class="nutri-leg-lbl">${lbl}</span>
               <span class="nutri-leg-val">${g}g</span>
             </div>`).join('')}
-          ${n.fibres?`<div class="nutri-leg-row"><div class="nutri-leg-dot" style="background:#94A3B8"></div><span class="nutri-leg-lbl">Fibres</span><span class="nutri-leg-val">${n.fibres}g</span></div>`:''}
+          ${n.fibres?`<div class="nutri-leg-row"><div class="nutri-leg-dot" style="background:#94A3B8"></div><span class="nutri-leg-lbl">Fibres</span><span class="nutri-leg-val">${gr(n.fibres)}g</span></div>`:''}
         </div>
       </div>
       <!-- Aliments détectés -->
@@ -322,15 +337,17 @@ function renderNutriResult(n, containerId){
         <ul class="aliment-list">${(n.aliments||[]).map(a=>`<li class="aliment-item">${a}</li>`).join('')}</ul>
       </div>`:''}
     </div>`;
-  setTimeout(()=>renderMacroDonut('nutriDonutResult',n.proteines||0,n.glucides||0,n.lipides||0),50);
+  setTimeout(()=>renderMacroDonut('nutriDonutResult',gr(n.proteines),gr(n.glucides),gr(n.lipides)),50);
 }
 
 // ── Totaux du jour — barre objectifs + camemberts
 function renderDayTotals(meals){
   const tot={cal:0,prot:0,gluc:0,lip:0};
-  meals.forEach(m=>{tot.cal+=m.calories||0;tot.prot+=m.proteines||0;tot.gluc+=m.glucides||0;tot.lip+=m.lipides||0;});
+  meals.forEach(m=>{tot.cal+=gr(m.calories);tot.prot+=gr(m.proteines);tot.gluc+=gr(m.glucides);tot.lip+=gr(m.lipides);});
   const plan=computeDayTargets();
   renderNutriPlanCard(plan);
+  // Le bilan dépend des repas : on le recalcule à chaque ajout ou suppression.
+  renderCalorieBalance(meals,(appData&&appData.wellness)||[],plan);
   const targets=plan.targets;
   const isDark=document.documentElement.getAttribute('data-theme')==='dark';
   const emptyCol=isDark?'#334155':'#E5E7EB';
@@ -360,7 +377,7 @@ function renderDayTotals(meals){
   defs.forEach(d=>{
     const pct   =Math.min(100,Math.round(d.val/d.max*100));
     const over  =d.val>d.max;
-    const remain=Math.max(0,d.max-d.val);
+    const remain=Math.max(0,Math.round(d.max-d.val));
     const col   =over?RED:d.col;
 
     // Centre %
@@ -373,7 +390,7 @@ function renderDayTotals(meals){
     const remEl=document.getElementById('dr-'+d.id);
     if(remEl){
       remEl.style.color=over?RED:'';
-      remEl.textContent=over?`+${d.val-d.max} ${d.unit} excès`:`${remain} ${d.unit} restants`;
+      remEl.textContent=over?`+${Math.round(d.val-d.max)} ${d.unit} excès`:`${remain} ${d.unit} restants`;
     }
 
     // Graphe
@@ -412,10 +429,10 @@ function renderMealHistory(meals){
         <div class="meal-name">${m.description||'Repas'}</div>
         <div class="meal-time">${fmtTime(m.analyzed_at)}</div>
         <div class="meal-macros">
-          <span class="meal-macro-pill" style="background:${MACRO_COLORS.cal}22;color:${MACRO_COLORS.cal}">${m.calories} kcal</span>
-          <span class="meal-macro-pill" style="background:${MACRO_COLORS.prot}22;color:${MACRO_COLORS.prot}">P ${m.proteines}g</span>
-          <span class="meal-macro-pill" style="background:${MACRO_COLORS.gluc}22;color:${MACRO_COLORS.gluc}">G ${m.glucides}g</span>
-          <span class="meal-macro-pill" style="background:${MACRO_COLORS.lip}22;color:${MACRO_COLORS.lip}">L ${m.lipides}g</span>
+          <span class="meal-macro-pill" style="background:${MACRO_COLORS.cal}22;color:${MACRO_COLORS.cal}">${gr(m.calories)} kcal</span>
+          <span class="meal-macro-pill" style="background:${MACRO_COLORS.prot}22;color:${MACRO_COLORS.prot}">P ${gr(m.proteines)}g</span>
+          <span class="meal-macro-pill" style="background:${MACRO_COLORS.gluc}22;color:${MACRO_COLORS.gluc}">G ${gr(m.glucides)}g</span>
+          <span class="meal-macro-pill" style="background:${MACRO_COLORS.lip}22;color:${MACRO_COLORS.lip}">L ${gr(m.lipides)}g</span>
         </div>
       </div>
       <button class="meal-delete" onclick="deleteMeal(${m.id})" title="Supprimer">
@@ -436,7 +453,6 @@ async function loadNutritionHistory(){
     const r=await fetch(`/api/meals?date=${today}`);
     const j=await r.json();
     nutriMeals=j.ok?j.meals:[];
-    renderCalorieBalance(nutriMeals,appData?appData.wellness:[]);
     renderDayTotals(nutriMeals);
     renderMealHistory(nutriMeals);
     await renderMacroHistory();
