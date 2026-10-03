@@ -118,7 +118,7 @@ function renderTrainingLoad(A){
   else if(lastForm>-10)formLabel='🔄 Équilibre';
   else if(lastForm>-30)formLabel='⚠️ Chargé';
   else formLabel='🔴 Surcharge';
-  document.getElementById('trainingLoadBadge').textContent=`Fraîcheur ${lastForm>0?'+':''}${lastForm} — ${formLabel}`;
+  document.getElementById('trainingLoadBadge').textContent=`Fraîcheur ${lastForm>0?'+':''}${nfr(lastForm)} — ${formLabel}`;
   mkChart('trainingLoadChart',{
     type:'line',
     data:{labels:lbls,datasets:[

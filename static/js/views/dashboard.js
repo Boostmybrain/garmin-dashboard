@@ -333,7 +333,8 @@ function renderAlerts(W,S,A){
   // Stress élevé
   if(last.stress>=0&&last.stress>70) alerts.push({type:'danger',msg:`Stress élevé : ${last.stress}/100`});
   // Peu de pas
-  if(!stale&&last.steps>0&&last.steps<3000) alerts.push({type:'info',msg:`Peu de pas : ${last.steps.toLocaleString('fr-FR')}`});
+  // La journée en cours n'est jugée qu'en soirée : à 11h, 108 pas n'est pas une alerte.
+  if(!stale&&new Date().getHours()>=20&&last.steps>0&&last.steps<3000) alerts.push({type:'info',msg:`Peu de pas : ${last.steps.toLocaleString('fr-FR')}`});
   // FC repos anormale
   if(rhr(last)&&W.length>=7){
     const avgRHR=Math.round(W.slice(-14).filter(d=>rhr(d)).reduce((s,d)=>s+rhr(d),0)/W.slice(-14).filter(d=>rhr(d)).length);
@@ -355,8 +356,10 @@ function renderWeeklyReport(W,S,A){
   const {curr:thisSl,prev:prevSl}=rollingWindows(S,7);
   const {curr:thisA,prev:prevA}=rollingWindows(A,7);
   const avg=(arr,k)=>{const f=arr.filter(d=>d[k]>0);return f.length?f.reduce((s,d)=>s+d[k],0)/f.length:0;};
-  const thisRuns=thisA.filter(a=>a.type==='running');
-  const prevRuns=prevA.filter(a=>a.type==='running');
+  // Les traces parasites (GPS lancé puis arrêté) ne sont pas des sorties.
+  const isRun=a=>a.type==='running'&&(a.distance_km||0)>=1;
+  const thisRuns=thisA.filter(isRun);
+  const prevRuns=prevA.filter(isRun);
 
   const metrics=[
     {lbl:'Pas / jour',curr:avg(thisW,'steps'),prev:avg(prevW,'steps'),fmt:v=>Math.round(v).toLocaleString('fr-FR'),lower:false},
