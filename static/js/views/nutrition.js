@@ -72,8 +72,11 @@ function computeDayTargets(){
   const needWeek=daysLeft>0?(weight-WEIGHT_GOAL.kg)/daysLeft*7:0;
   const rateWeek=Math.max(0,Math.min(MAX_LOSS_WEEK,needWeek));
   let deficit=DAY_TYPES[type].deficit*(MAX_LOSS_WEEK?rateWeek/MAX_LOSS_WEEK:0);
+  // Dernières semaines : perdre 500 g de plus ne fera pas gagner une minute,
+  // mais courir à sec sur 42 km coûte très cher. Le déficit s'efface.
   if(daysLeft<=3&&daysLeft>=1){type='charge';deficit=0;}       // J-3 → J-1 : recharge
-  else if(daysLeft<=10) deficit/=2;                              // semaine d'affûtage
+  else if(daysLeft<=10) deficit=0;                               // affûtage : plus de déficit
+  else if(daysLeft<=21) deficit=Math.min(deficit,250);           // 3 dernières semaines
 
   const cfg=DAY_TYPES[type];
   const tdee=BASE_KCAL+kcal;
@@ -96,6 +99,7 @@ function renderNutriPlanCard(p){
   const projected=p.weight-p.rateWeek*0.85*Math.max(0,p.daysLeft-3)/7;
   let note;
   if(p.type==='charge') note='Recharge glucidique avant le marathon : +1 à 1,5 kg sur la balance, c\'est du glycogène et de l\'eau, pas du gras.';
+  else if(p.daysLeft<=21&&p.daysLeft>3) note=`Plus que ${p.daysLeft} jours : on arrête de chasser le poids. Déficit plafonné à 250 kcal jusqu'à J-10, puis zéro. Des réserves pleines valent plus que 500 g de moins.`;
   else if(p.needWeek>MAX_LOSS_WEEK) note=`${WEIGHT_GOAL.kg} kg le ${fmtDate(WEIGHT_GOAL.date)} demanderait −${nf(p.needWeek,2)} kg/semaine. En plein bloc marathon, avec un tendon qui cicatrise, je plafonne à −${nf(MAX_LOSS_WEEK,1)} kg/semaine. Projection réaliste : ~${nf(projected,1)} kg avant la recharge des 3 derniers jours.`;
   else if(p.needWeek<=0) note='Objectif de poids atteint : les apports visent l\'équilibre.';
   else note=`Rythme visé −${nf(p.rateWeek,2)} kg/semaine : objectif ${WEIGHT_GOAL.kg} kg tenable.`;
