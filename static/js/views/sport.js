@@ -10,7 +10,10 @@ let _habitStrengthLoading = false;
 // Séance de force : 💪/🏋️ ou mot-clé, sauf les séances de course (titre en 🏃,
 // ex. « 🏃 EF 8 km + 4 × 3 min allure Hyrox »)
 const _STRENGTH_TITLE = /force|muscu|renfo|hyrox|stations|💪|🏋/i;
-const _isStrengthTitle = t => !/^\s*🏃/u.test(t||'') && _STRENGTH_TITLE.test(t||'');
+// Jour de repos (🔄, 😴 ou « repos » dans le titre) : la case Sport cochée veut
+// dire « repos respecté », pas séance faite → jamais de muscu ajoutée.
+const _isRestTitle = t => /^\s*(🔄|😴|🛌)/u.test(t||'') || /\brepos\b/i.test(t||'');
+const _isStrengthTitle = t => !/^\s*🏃/u.test(t||'') && !_isRestTitle(t) && _STRENGTH_TITLE.test(t||'');
 
 async function loadHabitStrength(){
   if(_habitStrengthLoading) return;
