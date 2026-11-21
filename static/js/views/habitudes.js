@@ -29,6 +29,8 @@ function _getHabitsCache() {
 }
 
 async function toggleHabit(dateStr, habit) {
+  // La vue Sport recalcule ses séances de force validées par l'habitude « Sport »
+  if (habit === 'Sport' && typeof _habitStrength !== 'undefined') _habitStrength = null;
   // Optimistic update : màj cache local immédiatement
   const data = _getHabitsCache();
   if (!data[dateStr]) data[dateStr] = {};

@@ -64,10 +64,52 @@ function renderPRCards(A){
 }
 
 // ══════════════════════════════════════════
+// SPORT — SÉANCES DE FORCE VALIDÉES PAR LES HABITUDES
+// Jour où le plan prévoyait une séance de force ET où l'habitude « Sport » est
+// cochée = séance faite, même si la montre ne l'a pas enregistrée.
+// ══════════════════════════════════════════
+let _habitStrength = null;      // [{date,type,name,duration_min,fromHabit:true}]
+let _habitStrengthLoading = false;
+const _STRENGTH_TITLE = /force|muscu|renfo|hyrox|stations|💪|🏋/i;
+
+async function loadHabitStrength(){
+  if(_habitStrengthLoading) return;
+  _habitStrengthLoading = true;
+  try{
+    const [h, t] = await Promise.all([
+      fetch('/api/habits?days=400',{cache:'no-store'}).then(r=>r.json()),
+      fetch('/api/training/history',{cache:'no-store'}).then(r=>r.json()),
+    ]);
+    const habits = (h && h.ok && h.habits) || {};
+    const today  = localISO(new Date());
+    _habitStrength = ((t && t.ok && t.sessions) || [])
+      .filter(s => s.date <= today && _STRENGTH_TITLE.test(s.title||'') && habits[s.date]?.Sport)
+      .map(s => {
+        const m = (s.title||'').match(/(\d+)\s*min\b/i);
+        const name = (s.title||'').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u,'')
+                                   .replace(/\s*·\s*\d+\s*min\b/i,'').trim();
+        return {date:s.date, type:'strength_training', name,
+                duration_min: m ? parseInt(m[1],10) : 0, fromHabit:true};
+      });
+  }catch(e){ _habitStrength = _habitStrength || []; }
+  _habitStrengthLoading = false;
+  if(curView==='sport') renderSport();
+}
+
+// Activités montre + séances de force cochées non enregistrées par la montre
+function sportActivities(){
+  const A = appData.activities||[];
+  if(!_habitStrength) return A;
+  const strengthDays = new Set(A.filter(a=>/strength/i.test(a.type||'')).map(a=>a.date));
+  return [...A, ..._habitStrength.filter(s=>!strengthDays.has(s.date))];
+}
+
+// ══════════════════════════════════════════
 // RENDER SPORT
 // ══════════════════════════════════════════
 function renderSport(){
-  const A=appData.activities||[];
+  if(_habitStrength===null) loadHabitStrength();
+  const A=sportActivities();
 
   // Stats filtrées sur la période sélectionnée (curPeriod jours)
   const cutoff=new Date();

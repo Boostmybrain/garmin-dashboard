@@ -109,6 +109,7 @@
 .act-info{flex:1;min-width:0}
 .act-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .act-date{font-size:11px;color:var(--text2)}
+.act-habit{font-size:11px;color:var(--green,#22C55E);margin-top:2px}
 .act-stats{display:flex;gap:10px;flex-shrink:0}
 .act-stat{font-size:11px;text-align:right}
 .act-stat .v{font-size:13px;font-weight:700;display:block}

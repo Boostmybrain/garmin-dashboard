@@ -596,6 +596,34 @@ def api_get_training():
     return jsonify({"ok": True, "sessions": sessions, "week_label": row[1], "uploaded_at": row[2]})
 
 
+@app.route("/api/training/history")
+def api_training_history():
+    """Toutes les séances de tous les plans chargés, datées (AAAA-MM-JJ).
+    Le plan ne stocke que jour + mois : l'année vient de la date d'upload.
+    Si un jour figure dans plusieurs plans, le plan le plus récent l'emporte."""
+    from datetime import date as _date, timedelta
+    with sqlite3.connect(DATABASE) as c:
+        rows = c.execute("SELECT sessions, uploaded_at FROM training_week ORDER BY id").fetchall()
+    by_date = {}
+    for sessions_json, uploaded_at in rows:
+        try:
+            up = _date.fromisoformat((uploaded_at or '')[:10])
+        except ValueError:
+            up = _date.today()
+        for s in json.loads(sessions_json or '[]'):
+            try:
+                d = _date(up.year, int(s.get('month') or 0), int(s.get('day_num') or 0))
+            except (ValueError, TypeError):
+                continue
+            if d < up - timedelta(days=180):
+                d = d.replace(year=d.year + 1)
+            elif d > up + timedelta(days=180):
+                d = d.replace(year=d.year - 1)
+            by_date[d.isoformat()] = {"date": d.isoformat(), "title": s.get('title', ''),
+                                      "color": s.get('color', '')}
+    return jsonify({"ok": True, "sessions": sorted(by_date.values(), key=lambda x: x['date'])})
+
+
 @app.route("/api/update-training-order", methods=["POST"])
 def api_update_training_order():
     """Sauvegarde le plan après un drag & drop côté client."""
