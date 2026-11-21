@@ -173,7 +173,7 @@ function _splitSegments(text, label, notes){
 function _compactHeader(line, notes){
   let h = line
     .replace(/\s*\([^)]{16,}\)/g,'')                                         // longues parenthèses
-    .replace(/\s*·\s*(?:enchaînés sans aucune pause[^·]*|aucun repos à l'intérieur du tour)/gi,' · sans pause');
+    .replace(/\s*·\s*(?:enchaînés sans aucune pause[^·]*|aucun repos à l'intérieur du tour|sans pause)/gi,'');
   h = _compactWorkout(h);
   const name = h.split(/\s+·\s+/)[0];
   return _splitSegments(h, name, notes);
@@ -276,18 +276,16 @@ function parseSessionStructured(content){
 
 function _blockHtml(b){
   const isCircuit = b.circuit && b.items.length > 1;
-  const tag = isCircuit ? 'ol' : 'ul';
+  const numbered = isCircuit || b.items.some(it=>typeof it==='object');
+  let k = 0;
   const items = b.items.map(it=>{
-    if(typeof it === 'object'){
-      return isCircuit
-        ? `<li>${_esc(it.text)}</li>`
-        : `<li><span class="ts-num">${it.num}</span> · ${_esc(it.text)}</li>`;
-    }
-    return `<li>${_esc(it)}</li>`;
+    if(typeof it === 'object'){ k = +it.num || k+1; return `<li><span class="ts-n">${it.num}</span><span>${_esc(it.text)}</span></li>`; }
+    if(isCircuit){ k++; return `<li><span class="ts-n">${k}</span><span>${_esc(it)}</span></li>`; }
+    return `<li class="ts-plain${_EMOJI_START.test(it)?' ts-emo':''}">${_esc(it)}</li>`;
   }).join('');
   return `<div class="ts-block">
       <div class="ts-head">${_esc(b.head)}</div>
-      ${items ? `<${tag} class="ts-list${isCircuit?' ts-ol':''}">${items}</${tag}>` : ''}
+      ${items ? `<ul class="ts-list${numbered?' ts-numbered':''}">${items}</ul>` : ''}
     </div>`;
 }
 
@@ -298,25 +296,68 @@ function _notesHtml(arr){
                                    (_,e,h,p)=>`${e||''}<b>${h}</b>${p}`);
     const sub = n.sub.length
       ? `<ul class="ts-sub">${n.sub.map(s=>`<li>${_esc(s)}</li>`).join('')}</ul>` : '';
-    return `<li>${t}${sub}</li>`;
+    return `<li${_EMOJI_START.test(n.text)?' class="ts-emo"':''}>${t}${sub}</li>`;
   }).join('');
 }
 
-// Point du matin → même présentation que les consignes :
-// une puce par point (1️⃣, 📌, 🎯…), les lignes suivantes en sous-puces
+// Point du matin : un titre par point (1️⃣ → pastille, 📌/🎯… → icône),
+// puis le contenu découpé en phrases dans une liste à puces.
+const _UPPER_LBL = /^([A-ZÀ-ÖØ-Þ0-9][A-ZÀ-ÖØ-Þ0-9'’\-]*(?:\s+(?:[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'’\-]*|À|D'|L'))*)(?=$|[\s:.,;!?])/;
+const _capFirst = t => t.charAt(0).toUpperCase()+t.slice(1);
+function _morningSplit(rest){
+  // phrases, et « · » quand le segment suivant démarre par un intitulé en majuscules
+  return rest.split(/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ0-9«])|\s+·\s+(?=[A-ZÀ-ÖØ-Þ]{3,})/)
+    .map(x=>x.replace(/^[\s,;:·]+/,'').replace(/\.$/,'').trim()).filter(Boolean).map(_capFirst);
+}
 function _parseMorning(text){
   const out = [];
   for(const raw of text.split('\n')){
     const line = raw.trim();
     if(!line || /^📊\s*POINT DU MATIN/i.test(line)) continue;
-    const isHead = _EMOJI_START.test(line) || /^\d\uFE0F?\u20E3/.test(line);
-    if(isHead || !out.length){
-      out.push({text:_compactText(line.replace(/^📌\s*/,'')), sub:[]});
-    } else {
-      out[out.length-1].sub.push(_compactText(line.replace(_BULLET,'')));
+    const key = line.match(/^(\d)️?⃣\s*/);
+    const emo = !key && line.match(/^(\p{Extended_Pictographic}️?)\s*/u);
+    if(!key && !emo){                                   // ligne de suite → puce du point courant
+      if(!out.length) out.push({num:'',icon:'',label:'',value:'',bullets:[]});
+      out[out.length-1].bullets.push(_compactText(line.replace(_BULLET,'')));
+      continue;
     }
+    let t = _compactText(line.slice((key||emo)[0].length));
+    const m = t.match(_UPPER_LBL);
+    // 📌 sans intitulé en majuscules = précision du point précédent
+    if(emo && !(m && m[1].replace(/[^A-ZÀ-ÖØ-Þ]/g,'').length>=4) && out.length){
+      out[out.length-1].bullets.push(..._morningSplit(t)); continue;
+    }
+    const it = {num:key?key[1]:'', icon:emo?emo[1]:'', label:'', value:'', bullets:[]};
+    if(m && m[1].replace(/[^A-ZÀ-ÖØ-Þ]/g,'').length>=3){
+      it.label = m[1].trim(); t = t.slice(m[0].length);
+      // valeur courte juste après l'intitulé : « FC REPOS 52. » / « STRESS 21 · »
+      const v = t.match(/^\s*:?\s*(\d[\d,.]*(?:\s?(?:h|min|bpm|ms|%|km|kg)(?:\s?\d+)?)?)\s*(?:[.·]\s+|$)/);
+      if(v){ it.value = v[1]; t = t.slice(v[0].length); }
+      else {
+        // phrase tout en majuscules juste après « : » → dans le titre (« DÉCISION : JE NE CHANGE RIEN »)
+        const c = t.match(/^\s*:\s*([^a-zà-ÿ.]{3,60}?)\s*(?:\.\s+|$)/);
+        if(c){ it.value = c[1]; t = t.slice(c[0].length); }
+        else {
+          // courte précision qui annonce une liste (« , à ta demande. Deux choses : »)
+          const sh = t.replace(/^[\s,;:]+/,'');
+          if(sh.length<=45 && /:\s*$/.test(sh)){ it.note = _capFirst(sh.replace(/\s*:\s*$/,'').replace(/\.\s+/g,' · ').replace(/\.$/,'')); t=''; }
+        }
+      }
+    }
+    it.bullets.push(..._morningSplit(t));
+    out.push(it);
   }
   return out;
+}
+
+const _boldLead = t => _esc(t).replace(/^([^a-zà-ÿ]{4,}?)(\s*[:.](?:\s|$))/u,(_,h,p)=>`<b>${h}</b>${p}`);
+function _morningHtml(items){
+  return items.map(it=>{
+    const badge = it.num ? `<span class="ts-n">${it.num}</span>` : it.icon ? `<span class="tm-ic">${it.icon}</span>` : '';
+    const title = (it.label||it.value) ? `<div class="tm-title">${badge}<span>${it.label?`<span class="tm-lbl">${_esc(it.label)}</span>`:''}${it.value?`${it.label?' : ':''}<span class="tm-val">${_esc(it.value)}</span>`:''}${it.note?`<span class="tm-note"> · ${_esc(it.note)}</span>`:''}</span></div>` : '';
+    const list = it.bullets.length ? `<ul class="tm-bul">${it.bullets.map(b=>`<li>${_boldLead(b)}</li>`).join('')}</ul>` : '';
+    return `<li class="tm-item">${title}${list}</li>`;
+  }).join('');
 }
 
 function formatSessionCompact(content){
@@ -336,7 +377,7 @@ function formatSessionCompact(content){
   if(morning){
     html += `<details class="ts-group ts-morning">
       <summary class="ts-group-title">📊 Point du matin</summary>
-      <ul class="ts-notes">${_notesHtml(_parseMorning(morning))}</ul></details>`;
+      <ul class="tm-list">${_morningHtml(_parseMorning(morning))}</ul></details>`;
   }
   return html + '</div>';
 }

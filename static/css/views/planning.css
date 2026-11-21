@@ -154,8 +154,12 @@
 .ts-block{margin:0 0 14px}
 .ts-head{font-weight:700;font-size:14px;margin-bottom:4px}
 .ts-list{margin:0 0 0 20px;padding:0;list-style:disc}
-.ts-list.ts-ol{list-style:decimal}
 .ts-list li{margin:2px 0}
+.ts-list.ts-numbered{list-style:none;margin-left:0}
+.ts-list.ts-numbered li{display:flex;align-items:flex-start;gap:8px;margin:5px 0}
+.ts-list.ts-numbered li.ts-plain{display:list-item;list-style:disc;margin-left:20px}
+.ts-n{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-width:20px;height:20px;padding:0 5px;margin-top:1px;
+  border-radius:6px;background:var(--blue-l);color:var(--blue);font-size:12px;font-weight:700;line-height:1}
 .ts-num{font-weight:700}
 .ts-group{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5}
 .ts-group-title{font-weight:700;font-size:13px;cursor:default}
@@ -164,8 +168,23 @@ details.ts-group > summary::-webkit-details-marker{display:none}
 details.ts-group > summary::after{content:' ↓';color:var(--text2);font-weight:400}
 details.ts-group[open] > summary::after{content:' ↑'}
 .ts-warn{background:rgba(239,68,68,.08);border-left:3px solid var(--red)}
-.ts-info{background:var(--surface2)}
-.ts-morning{background:var(--surface2)}
+.ts-info{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue)}
+.ts-morning{background:var(--surface);border:1px solid var(--border);border-left:3px solid #8B5CF6}
+.tm-list{list-style:none;margin:10px 0 0;padding:0}
+.tm-item{margin:0 0 12px}
+.tm-item:last-child{margin-bottom:2px}
+.tm-title{display:flex;align-items:flex-start;gap:8px;font-weight:600;color:var(--text)}
+.tm-ic{flex-shrink:0;width:20px;text-align:center;line-height:1.5}
+.tm-lbl{font-weight:700;letter-spacing:.02em}
+.tm-val{font-weight:700;color:#8B5CF6}
+.tm-note{font-weight:400;color:var(--text2)}
+.ts-list li.ts-emo,.ts-notes > li.ts-emo{list-style:none}
+.ts-notes > li.ts-emo{margin-left:-18px}
+.ts-list li.ts-emo{margin-left:-20px}
+.ts-list.ts-numbered li.ts-plain.ts-emo{margin-left:0}
+.tm-bul{margin:3px 0 0 46px;padding:0;list-style:disc;color:var(--text)}
+.tm-bul li{margin:2px 0}
+.tm-bul li::marker{color:var(--text2)}
 .ts-count{display:inline-block;font-size:11px;font-weight:600;padding:0 7px;border-radius:10px;background:var(--border);color:var(--text2);margin-left:4px}
 .ts-notes{margin:6px 0 0 18px;padding:0;list-style:disc}
 .ts-notes > li{margin:4px 0}
@@ -173,3 +192,4 @@ details.ts-group[open] > summary::after{content:' ↑'}
 .ts-morning-body{margin-top:6px}
 .ts-preview{margin:0 0 0 18px;padding:0;list-style:disc;font-size:13px;line-height:1.7}
 .ts-preview-warn{font-size:12px;color:var(--red);margin-top:6px}
+@media(max-width:768px){ .tm-bul{margin-left:34px} }
