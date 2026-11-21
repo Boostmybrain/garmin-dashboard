@@ -70,7 +70,10 @@ function renderPRCards(A){
 // ══════════════════════════════════════════
 let _habitStrength = null;      // [{date,type,name,duration_min,fromHabit:true}]
 let _habitStrengthLoading = false;
+// Séance de force : 💪/🏋️ ou mot-clé, sauf les séances de course (titre en 🏃,
+// ex. « 🏃 EF 8 km + 4 × 3 min allure Hyrox »)
 const _STRENGTH_TITLE = /force|muscu|renfo|hyrox|stations|💪|🏋/i;
+const _isStrengthTitle = t => !/^\s*🏃/u.test(t||'') && _STRENGTH_TITLE.test(t||'');
 
 async function loadHabitStrength(){
   if(_habitStrengthLoading) return;
@@ -83,7 +86,7 @@ async function loadHabitStrength(){
     const habits = (h && h.ok && h.habits) || {};
     const today  = localISO(new Date());
     _habitStrength = ((t && t.ok && t.sessions) || [])
-      .filter(s => s.date <= today && _STRENGTH_TITLE.test(s.title||'') && habits[s.date]?.Sport)
+      .filter(s => s.date <= today && _isStrengthTitle(s.title) && habits[s.date]?.Sport)
       .map(s => {
         const m = (s.title||'').match(/(\d+)\s*min\b/i);
         const name = (s.title||'').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u,'')
