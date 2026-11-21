@@ -114,6 +114,19 @@ function renderHabitudes(){
   if(el('hbToday'))  el('hbToday').textContent   = todayDone+'/'+HABITS_LIST.length;
   if(el('hbStreak')) el('hbStreak').textContent  = streak + (streak>1?' j':'j');
 
+  // ── Barres par habitude ──
+  const EMOJI = {'Sport':'🏃','Yoga':'🧘','Lecture':'📚','Italien':'🇮🇹','Complément alimentaire':'💊','Méditation':'🪷'};
+  if(el('hbPeriodBadge')) el('hbPeriodBadge').textContent = _habitPeriod+' j';
+  if(el('habitBars')) el('habitBars').innerHTML = HABITS_LIST.map(h=>{
+    const n = dates.filter(d => data[d]?.[h]).length;
+    const p = Math.round(n / dates.length * 100);
+    const c = p>=70?'#22C55E':p>=40?'#F59E0B':'#94A3B8';
+    return `<div class="hb-row">
+      <div class="hb-top"><span>${EMOJI[h]||'✦'} ${h}</span><span style="color:${c};font-weight:700">${p}%</span></div>
+      <div class="hb-bar"><div style="width:${Math.max(p,2)}%;background:${c}"></div></div>
+    </div>`;
+  }).join('');
+
   // ── Construire la grille ──
   const DAY_INIT = ['D','L','M','M','J','V','S'];
 

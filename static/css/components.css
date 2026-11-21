@@ -463,9 +463,7 @@ button,-webkit-tap-highlight-color:transparent;
 /* ══════════════════════════════════════
    HABITUDES — tracker
 ══════════════════════════════════════ */
-.habit-period-bar{
-  display:flex;gap:6px;margin-bottom:16px;justify-content:flex-end;
-}
+.habit-period-bar{display:flex;gap:6px}
 .habit-period-btn{
   padding:6px 16px;border-radius:20px;
   border:1.5px solid var(--border);
@@ -514,7 +512,7 @@ button,-webkit-tap-highlight-color:transparent;
 
 .habit-grid{
   display:grid;
-  grid-template-columns:150px repeat(var(--hcols),34px);
+  grid-template-columns:200px repeat(var(--hcols),34px);
   gap:3px;
   min-width:max-content;
 }
@@ -587,4 +585,40 @@ button,-webkit-tap-highlight-color:transparent;
   .hg-label{padding:0 4px 0 0}
   .hg-habit-name{font-size:11px;max-width:80px}
   .hg-habit-score{font-size:10px}
+}
+
+/* ── Santé : sélecteur Sport / Sommeil / Forme ── */
+.sante-tabs{display:none;gap:6px;margin-bottom:16px;padding:4px;background:var(--surface);
+  border:1px solid var(--border);border-radius:14px;box-shadow:var(--sh);width:max-content;max-width:100%}
+.sante-tabs.visible{display:flex}
+.sante-tab{border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;color:var(--text2);
+  padding:9px 18px;border-radius:10px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.sante-tab:hover{color:var(--text)}
+.sante-tab.active{background:var(--blue);color:#fff}
+@media(max-width:768px){
+  .sante-tabs{width:auto}
+  .sante-tab{flex:1;padding:9px 6px;font-size:13px}
+  /* Habitudes : pas sur mobile (le widget Android suffit) */
+  .nav-item[data-view="habitudes"]{display:none}
+}
+
+/* ── Habitudes : mise en page PC (grille à sa taille + colonne de synthèse) ── */
+.hab-layout{display:grid;grid-template-columns:minmax(0,max-content) minmax(280px,1fr);gap:16px;align-items:start}
+.hab-main{margin-bottom:0;padding:16px 18px}
+.hab-main .panel-header{gap:16px}
+.hab-help{font-size:12px;color:var(--text2);margin:10px 0 0}
+.hab-side{display:flex;flex-direction:column;gap:16px;max-width:420px}
+.hab-side .habit-stat-row{grid-template-columns:repeat(2,1fr);margin-bottom:0}
+.hab-bars-panel{margin-bottom:0;padding:16px 18px}
+.hb-row{margin:0 0 12px}
+.hb-row:last-child{margin-bottom:0}
+.hb-top{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:5px}
+.hb-bar{height:8px;border-radius:6px;background:var(--surface2);overflow:hidden}
+.hb-bar > div{height:100%;border-radius:6px;transition:width .3s}
+/* La période globale (Garmin) ne s'applique pas aux habitudes */
+body[data-view="habitudes"] .period-selector,
+body[data-view="habitudes"] .mobile-period-bar{visibility:hidden}
+@media(max-width:1000px){
+  .hab-layout{grid-template-columns:minmax(0,1fr)}
+  .hab-side{max-width:none}
 }

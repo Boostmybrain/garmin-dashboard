@@ -28,34 +28,7 @@ function renderPasForme(){
 
   // ── Pas quotidiens ──
   document.getElementById('stepsChartBadgeSport').textContent=curPeriod+'j';
-  const STEPS_GOAL=10000;
-  mkChart('stepsChartSport',{
-    type:'bar',
-    data:{
-      labels:Wp.map(d=>fmtDate(d.date)),
-      datasets:[{
-        label:'Pas',
-        data:Wp.map(d=>d.steps||0),
-        backgroundColor:Wp.map(d=>(d.steps||0)>=STEPS_GOAL?'#22C55E55':(d.steps||0)>=7500?'#4A6CF755':'#94A3B855'),
-        borderColor:    Wp.map(d=>(d.steps||0)>=STEPS_GOAL?'#22C55E'  :(d.steps||0)>=7500?'#4A6CF7'  :'#94A3B8'),
-        borderWidth:1.5,borderRadius:4,
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:c=>`${c.raw.toLocaleString('fr-FR')} pas`}},
-        annotation:{annotations:{goal:{type:'line',yMin:STEPS_GOAL,yMax:STEPS_GOAL,
-          borderColor:'#22C55E',borderWidth:1.5,borderDash:[6,4],
-          label:{content:'Objectif 10 000',display:true,position:'end',font:{size:10},color:'#22C55E',backgroundColor:'transparent'}}}}
-      },
-      scales:{
-        x:{display:true,ticks:{font:{size:9},maxTicksLimit:curPeriod<=7?7:curPeriod<=30?12:16,color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,ticks:{font:{size:9},color:'#9CA3AF',callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v},grid:{color:'var(--surface2)'},min:0},
-      }
-    }
-  });
+  mkChart('stepsChartSport',stepsChartCfg(Wp,{maxTicks:curPeriod<=7?7:curPeriod<=30?12:16,goal:true}));
 
   // ── Charge d'entraînement ──
   renderTrainingLoad(A);

@@ -1,69 +1,6 @@
 // ── sport.js — Vue Sport : allure, PR, VO2max, zones FC ──
 
 // ══════════════════════════════════════════
-// SPORT — ÉVOLUTION ALLURE
-// ══════════════════════════════════════════
-function renderPaceChart(A){
-  const panel=document.getElementById('pacePanel');if(!panel)return;
-  const runs=A.filter(a=>a.type==='running'&&a.distance_km>1&&a.duration_min>0)
-    .sort((a,b)=>a.date.localeCompare(b.date));
-  if(runs.length<3){panel.style.display='none';return;}
-  panel.style.display='block';
-  const paces=runs.map(r=>+(r.duration_min/r.distance_km).toFixed(2));
-  const smoothed=paces.map((p,i)=>{
-    const sl=paces.slice(Math.max(0,i-2),i+1);
-    return +(sl.reduce((s,v)=>s+v,0)/sl.length).toFixed(2);
-  });
-  const last=paces[paces.length-1];
-  const pFmt=v=>{const s=Math.round((v%1)*60);return s===60?`${Math.floor(v)+1}'00"`:`${Math.floor(v)}'${String(s).padStart(2,'0')}"`};
-  document.getElementById('paceBadge').textContent=pFmt(last)+'/km';
-  const all=[...paces,...smoothed];
-  const yMin=+(Math.min(...all)-0.5).toFixed(1);
-  const yMax=+(Math.max(...all)+0.5).toFixed(1);
-  mkChart('paceChart',{type:'line',
-    data:{labels:runs.map(r=>fmtDate(r.date)),datasets:[
-      {label:'Allure',data:paces,borderColor:'#FF6B3550',backgroundColor:'transparent',borderWidth:1,pointRadius:1.5,tension:.2},
-      {label:'Tendance',data:smoothed,borderColor:'#FF6B35',backgroundColor:'transparent',borderWidth:2.5,pointRadius:0,tension:.4},
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
-        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${pFmt(c.raw)}/km`}}},
-      scales:{
-        x:{display:true,ticks:{font:{size:9},maxTicksLimit:12,color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,min:yMin,max:yMax,reverse:true,
-          ticks:{font:{size:9},color:'#9CA3AF',callback:v=>pFmt(v)},
-          grid:{color:'var(--surface2)'}}}}
-  });
-}
-
-// ══════════════════════════════════════════
-// SPORT — PR RECORDS
-// ══════════════════════════════════════════
-function renderPRCards(A){
-  const panel=document.getElementById('prPanel');if(!panel)return;
-  const runs=A.filter(a=>a.type==='running'&&a.distance_km>0&&a.duration_min>0);
-  if(!runs.length){panel.style.display='none';return;}
-  const targets=[{dist:5,label:'5 km'},{dist:10,label:'10 km'},{dist:21.0975,label:'Semi-marathon'}];
-  const pFmt=v=>{const s=Math.round((v%1)*60);return s===60?`${Math.floor(v)+1}'00"`:`${Math.floor(v)}'${String(s).padStart(2,'0')}"`};
-  const tFmt=min=>{const h=Math.floor(min/60),m=Math.floor(min%60),s=Math.round((min*60)%60);return h>0?`${h}h${String(m).padStart(2,'0')}'${String(s).padStart(2,'0')}"`:`${m}'${String(s).padStart(2,'0')}"`; };
-  // Seules les sorties au moins aussi longues que la distance comptent : l'allure
-  // moyenne d'une sortie de 12 km est un temps réellement tenu sur 10 km.
-  // Pas de chrono au km près dans les données : c'est une borne, pas un vrai PR.
-  const cards=targets.map(t=>{
-    const matching=runs.filter(r=>r.distance_km>=t.dist*0.98);
-    if(!matching.length)return null;
-    const best=matching.reduce((b,r)=>{const p=r.duration_min/r.distance_km;return p<b.pace?{pace:p,r}:b;},{pace:Infinity,r:null});
-    if(!best.r)return null;
-    const src=`${best.r.distance_km.toLocaleString('fr-FR',{maximumFractionDigits:1})} km${best.r.avgHR?` · FC ${Math.round(best.r.avgHR)}`:''}`;
-    return{label:t.label,time:tFmt(best.pace*t.dist),pace:pFmt(best.pace)+'/km',date:`${fmtDate(best.r.date)} · ${src}`};
-  }).filter(Boolean);
-  if(!cards.length){panel.style.display='none';return;}
-  panel.style.display='block';
-  document.getElementById('prGrid').innerHTML=cards.map(c=>`<div class="pr-card"><div class="pr-dist">${c.label}</div><div class="pr-time">${c.time}</div><div class="pr-pace">${c.pace}</div><div class="pr-date">${c.date}</div></div>`).join('')
-    +`<p class="pr-note">Meilleure allure moyenne sur une sortie au moins aussi longue. Tes sorties sont surtout en endurance : ce sont des temps tenus à l'entraînement, pas ton niveau en course.</p>`;
-}
-
-// ══════════════════════════════════════════
 // SPORT — SÉANCES DE FORCE VALIDÉES PAR LES HABITUDES
 // Jour où le plan prévoyait une séance de force ET où l'habitude « Sport » est
 // cochée = séance faite, même si la montre ne l'a pas enregistrée.
@@ -137,8 +74,6 @@ function renderSport(){
   renderRunChart('runChartFull',A);
   renderVo2maxChart(A,cutoffStr);
   renderHRZones(A,cutoffStr);
-  renderPaceChart(A);
-  renderPRCards(A);
 
   document.querySelectorAll('#actFilterTabs .filter-tab').forEach(tab=>{const m=(tab.getAttribute('onclick')||'').match(/'([^']+)'/);tab.classList.toggle('active',m&&m[1]===actFilter);});
   document.getElementById('actListFull').innerHTML=filtered.length?filtered.map(actHTML).join(''):'<p style="color:var(--text2);font-size:13px;padding:16px 0">Aucune activité pour ce filtre.</p>';

@@ -86,7 +86,7 @@ window.addEventListener('resize',()=>{if(window.innerWidth>768)closeSidebar();})
 // ══════════════════════════════════════════
 function syncBottomNav(v){
   document.querySelectorAll('#bottomNav .bnav-item').forEach(b=>{
-    b.classList.toggle('active',b.dataset.view===v);
+    b.classList.toggle('active',b.dataset.view===(SANTE_VIEWS.includes(v)||v==='sante'?'sante':v));
   });
 }
 // Patch showView pour syncer la bottom nav

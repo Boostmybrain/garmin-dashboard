@@ -12,14 +12,16 @@ let lastSleepRegularityScore=5;
 // ══════════════════════════════════════════
 // SWIPE MOBILE — navigation entre vues
 // ══════════════════════════════════════════
-const VIEWS_ORDER=['dashboard','sleep','sport','forme','nutrition','habitudes','flashcards','planning'];
+// Swipe (mobile) : Santé = un seul onglet ; Habitudes absente du mobile
+const VIEWS_ORDER=['dashboard','sante','nutrition','flashcards','planning'];
+const SANTE_VIEWS=['sport','sleep','forme'];
 let _txStart=0,_tyStart=0;
 document.addEventListener('touchstart',e=>{_txStart=e.touches[0].clientX;_tyStart=e.touches[0].clientY;},{passive:true});
 document.addEventListener('touchend',e=>{
   const dx=e.changedTouches[0].clientX-_txStart;
   const dy=e.changedTouches[0].clientY-_tyStart;
   if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
-  const idx=VIEWS_ORDER.indexOf(curView);
+  const idx=VIEWS_ORDER.indexOf(SANTE_VIEWS.includes(curView)?'sante':curView);
   if(dx<0&&idx<VIEWS_ORDER.length-1)showView(VIEWS_ORDER[idx+1]);
   if(dx>0&&idx>0)showView(VIEWS_ORDER[idx-1]);
 },{passive:true});
@@ -40,6 +42,44 @@ function resolveCssVars(o){
   if(Array.isArray(o))return o.map(resolveCssVars);
   if(o&&Object.getPrototypeOf(o)===Object.prototype){for(const k in o)o[k]=resolveCssVars(o[k]);}
   return o;
+}
+// ── Pas quotidiens : axe 0-20 000, une journée au-delà est coupée à 20 000
+// et le haut de sa colonne est dessiné en pointillés
+const STEPS_CAP=20000;
+const _stepsOverflowPlugin={
+  id:'stepsOverflow',
+  afterDatasetsDraw(chart){
+    const raw=chart.data.datasets[0]?._raw; if(!raw) return;
+    const ctx=chart.ctx, top=chart.chartArea.top, h=14;
+    chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+      if(!(raw[i]>STEPS_CAP)) return;
+      const w=bar.width, x=bar.x-w/2;
+      ctx.save();
+      ctx.clearRect(x-1,top-1,w+2,h+1);
+      ctx.setLineDash([3,3]); ctx.lineWidth=1.5;
+      ctx.strokeStyle=bar.options.borderColor;
+      ctx.beginPath(); ctx.moveTo(x,top+h); ctx.lineTo(x,top); ctx.lineTo(x+w,top); ctx.lineTo(x+w,top+h); ctx.stroke();
+      ctx.restore();
+    });
+  }
+};
+function stepsChartCfg(Wp,{maxTicks=8,goal=false}={}){
+  const raw=Wp.map(d=>d.steps||0);
+  const col=v=>v>=10000?'#22C55E':v>=7500?'#4A6CF7':'#94A3B8';
+  const cfg={type:'bar',
+    data:{labels:Wp.map(d=>fmtDate(d.date)),datasets:[{label:'Pas',_raw:raw,
+      data:raw.map(v=>Math.min(v,STEPS_CAP)),
+      backgroundColor:raw.map(v=>col(v)+'55'),borderColor:raw.map(col),borderWidth:1.5,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${raw[c.dataIndex].toLocaleString('fr-FR')} pas`}}},
+      scales:{x:{display:true,ticks:{font:{size:9},maxTicksLimit:maxTicks,color:'#9CA3AF'},grid:{display:false}},
+        y:{display:true,min:0,max:STEPS_CAP,ticks:{stepSize:5000,font:{size:9},color:'#9CA3AF',callback:v=>v?(v/1000)+'k':0},grid:{color:'var(--surface2)'}}}},
+    plugins:[_stepsOverflowPlugin]};
+  if(goal) cfg.options.plugins.annotation={annotations:{goal:{type:'line',yMin:10000,yMax:10000,
+    borderColor:'#22C55E',borderWidth:1.5,borderDash:[6,4],
+    label:{content:'Objectif 10 000',display:true,position:'end',font:{size:10},color:'#22C55E',backgroundColor:'transparent'}}}};
+  return cfg;
 }
 function mkChart(id,cfg){dc(id);const c=document.getElementById(id);if(!c)return null;charts[id]=new Chart(c,resolveCssVars(cfg));return charts[id]}
 
@@ -128,25 +168,37 @@ function renderTrend(elId,trend,unit=''){
 // ══════════════════════════════════════════
 const VIEW_META={
   dashboard: {title:'Mon tableau de bord',  sub:'Sommeil · Sport · Stress · Activités'},
-  sleep:     {title:'Sommeil',              sub:'Analyse détaillée de vos nuits'},
-  sport:     {title:'Sport & Activités',    sub:'Toutes vos séances'},
-  forme:      {title:'Forme & Bien-être',    sub:'Pas quotidiens · Stress · Fréquence cardiaque'},
+  sleep:     {title:'Santé',                sub:'Sommeil · analyse de vos nuits'},
+  sport:     {title:'Santé',                sub:'Sport & activités'},
+  forme:      {title:'Santé',                sub:'Forme · pas, stress, fréquence cardiaque'},
   nutrition:  {title:'Nutrition',            sub:'Analyse de vos repas par OpenAI Vision'},
   habitudes:  {title:'Habitudes',            sub:'Suivi quotidien de vos routines'},
   flashcards: {title:'Flashcards',           sub:'Révision par répétition espacée (SM-2)'},
   planning:   {title:'Planning',             sub:'Programme de la semaine'},
 };
 function showView(v){
+  if(v==='sante') v='sport';            // l'onglet Santé ouvre Sport par défaut
   const viewEl=document.getElementById('view-'+v);
   if(!viewEl)return; // vue inexistante (cache navigateur obsolète)
   curView=v;
+  document.body.dataset.view=v;
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   viewEl.classList.add('active');
   // Active state sidebar + ARIA current
+  const navKey=SANTE_VIEWS.includes(v)?'sante':v;
   document.querySelectorAll('[data-view]').forEach(el=>{
-    el.classList.toggle('active',el.dataset.view===v);
-    el.setAttribute('aria-current',el.dataset.view===v?'page':'false');
+    el.classList.toggle('active',el.dataset.view===navKey);
+    el.setAttribute('aria-current',el.dataset.view===navKey?'page':'false');
   });
+  // Sélecteur Sport / Sommeil / Forme
+  const st=document.getElementById('santeTabs');
+  if(st){
+    st.classList.toggle('visible',SANTE_VIEWS.includes(v));
+    st.querySelectorAll('.sante-tab').forEach(b=>{
+      const on=b.dataset.sub===v;
+      b.classList.toggle('active',on); b.setAttribute('aria-selected',on);
+    });
+  }
   const m=VIEW_META[v]||{};
   document.getElementById('viewTitle').textContent=m.title||'';
   document.getElementById('topbarSub').textContent=m.sub||'';
