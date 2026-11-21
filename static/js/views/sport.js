@@ -136,7 +136,9 @@ function renderVo2maxChart(A,cutoffStr){
     const allProj=[...projData,...futureVals];
     const projectedIn90=futureVals[2];
     const projDiff=+(projectedIn90-vals[vals.length-1]).toFixed(1);
-    document.getElementById('vo2maxBadge').textContent=`${nfr(vals[vals.length-1])} → ~${nfr(projectedIn90)} mL/kg/min en 90 j (${projDiff>0?'+':''}${nfr(projDiff)})`;
+    document.getElementById('vo2maxBadge').textContent=Math.abs(projDiff)<0.25
+      ? `${nfr(vals[vals.length-1])} · stable`
+      : `${nfr(vals[vals.length-1])} → ~${nfr(projectedIn90)} en 90 j (${projDiff>0?'+':''}${nfr(projDiff)})`;
     const forecastDataset={label:'Tendance 90j',data:allProj,borderColor:'#F59E0B',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,5],pointRadius:3,tension:.4,spanGaps:true};
     // On doit reconstruire le chart avec les labels étendus
     mkChart('vo2maxChart',{type:'line',

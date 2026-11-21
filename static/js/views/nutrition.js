@@ -10,8 +10,8 @@ const gr=v=>Math.round(Number(v)||0);
 // NUTRITION — OBJECTIFS DU JOUR
 // Calculés depuis la séance du jour (plan ou activité faite) et le dernier poids.
 // ══════════════════════════════════════════
-const WEIGHT_GOAL   ={kg:74, date:'2026-11-01'};   // marathon de Toulouse
-const MAX_LOSS_WEEK =0.5;      // kg/semaine : au-delà, le bloc marathon et le tendon trinquent
+const WEIGHT_GOAL   ={kg:74, date:'2027-02-03', race:'HYROX Toulouse'};   // objectif phase 2 (PROFIL_ATHLETE §2)
+const MAX_LOSS_WEEK =0.5;      // kg/semaine : au-delà, la force et la récupération trinquent
 const BASE_KCAL     =2350;     // dépense Garmin médiane d'un jour sans séance (juin–sept. 2026)
 const KCAL_PER_KG   =7700;
 
@@ -22,7 +22,7 @@ const DAY_TYPES={
   renfo: {label:'Renfo / Hyrox',      emoji:'💪', col:'#F97316', deficit:600, carbs:3},
   cle:   {label:'Séance clé',         emoji:'🔥', col:'#EF4444', deficit:350, carbs:5},
   longue:{label:'Sortie longue',      emoji:'⛰️', col:'#8B5CF6', deficit:100, carbs:6},
-  charge:{label:'Recharge glucidique',emoji:'🍝', col:'#0EA5E9', deficit:0,   carbs:9},
+  charge:{label:'Recharge glucidique',emoji:'🍝', col:'#0EA5E9', deficit:0,   carbs:6},   // légère : l'Hyrox dure ~1 h 05
 };
 
 function currentWeight(){
@@ -73,8 +73,8 @@ function computeDayTargets(){
   const rateWeek=Math.max(0,Math.min(MAX_LOSS_WEEK,needWeek));
   let deficit=DAY_TYPES[type].deficit*(MAX_LOSS_WEEK?rateWeek/MAX_LOSS_WEEK:0);
   // Dernières semaines : perdre 500 g de plus ne fera pas gagner une minute,
-  // mais courir à sec sur 42 km coûte très cher. Le déficit s'efface.
-  if(daysLeft<=3&&daysLeft>=1){type='charge';deficit=0;}       // J-3 → J-1 : recharge
+  // mais arriver vidé coûte très cher. Le déficit s'efface.
+  if(daysLeft<=2&&daysLeft>=1){type='charge';deficit=0;}       // J-2 → J-1 : recharge légère
   else if(daysLeft<=10) deficit=0;                               // affûtage : plus de déficit
   else if(daysLeft<=21) deficit=Math.min(deficit,250);           // 3 dernières semaines
 
@@ -96,11 +96,11 @@ function renderNutriPlanCard(p){
   const el=document.getElementById('nutriPlanCard');if(!el)return;
   const nf=(v,d=0)=>v.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
   // Projection au rythme retenu (déficit moyen d'une semaine type ≈ 85 % du rythme visé)
-  const projected=p.weight-p.rateWeek*0.85*Math.max(0,p.daysLeft-3)/7;
+  const projected=p.weight-p.rateWeek*0.85*Math.max(0,p.daysLeft-10)/7;
   let note;
-  if(p.type==='charge') note='Recharge glucidique avant le marathon : +1 à 1,5 kg sur la balance, c\'est du glycogène et de l\'eau, pas du gras.';
+  if(p.type==='charge') note='Recharge glucidique légère avant l\'Hyrox : +0,5 à 1 kg sur la balance, c\'est du glycogène et de l\'eau, pas du gras.';
   else if(p.daysLeft<=21&&p.daysLeft>3) note=`Plus que ${p.daysLeft} jours : on arrête de chasser le poids. Déficit plafonné à 250 kcal jusqu'à J-10, puis zéro. Des réserves pleines valent plus que 500 g de moins.`;
-  else if(p.needWeek>MAX_LOSS_WEEK) note=`${WEIGHT_GOAL.kg} kg le ${fmtDate(WEIGHT_GOAL.date)} demanderait −${nf(p.needWeek,2)} kg/semaine. En plein bloc marathon, avec un tendon qui cicatrise, je plafonne à −${nf(MAX_LOSS_WEEK,1)} kg/semaine. Projection réaliste : ~${nf(projected,1)} kg avant la recharge des 3 derniers jours.`;
+  else if(p.needWeek>MAX_LOSS_WEEK) note=`${WEIGHT_GOAL.kg} kg le ${fmtDate(WEIGHT_GOAL.date)} demanderait −${nf(p.needWeek,2)} kg/semaine. Pour ne pas perdre de force pendant la prépa, je plafonne à −${nf(MAX_LOSS_WEEK,1)} kg/semaine. Projection réaliste : ~${nf(projected,1)} kg à J-10, quand le déficit s'arrête.`;
   else if(p.needWeek<=0) note='Objectif de poids atteint : les apports visent l\'équilibre.';
   else note=`Rythme visé −${nf(p.rateWeek,2)} kg/semaine : objectif ${WEIGHT_GOAL.kg} kg tenable.`;
   el.innerHTML=`
@@ -111,8 +111,8 @@ function renderNutriPlanCard(p){
     <div class="npc-rows">
       <div class="npc-row"><b>${nf(p.weight,1)} kg</b><span>Poids${p.weightDate?' · '+fmtDate(p.weightDate):''} → ${WEIGHT_GOAL.kg} kg</span></div>
       <div class="npc-row"><b>${nf(p.tdee)} kcal</b><span>Dépense estimée (séance ${nf(p.kcal)} kcal)</span></div>
-      <div class="npc-row"><b>−${nf(p.deficit)} kcal</b><span>Déficit du jour</span></div>
-      <div class="npc-row"><b>J-${p.daysLeft}</b><span>Marathon de Toulouse</span></div>
+      <div class="npc-row"><b>${p.deficit>0?'−'+nf(p.deficit):'0'} kcal</b><span>Déficit du jour</span></div>
+      <div class="npc-row"><b>${p.daysLeft>0?'J-'+p.daysLeft:p.daysLeft===0?'Jour J':'Passé'}</b><span>${WEIGHT_GOAL.race} · ${fmtDate(WEIGHT_GOAL.date)}</span></div>
     </div>
     <div class="npc-note">Séance : ${p.src}<br>${note}</div>
     <div class="npc-weight">

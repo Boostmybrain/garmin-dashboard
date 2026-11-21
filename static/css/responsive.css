@@ -54,6 +54,7 @@
   .sleep-stats{grid-template-columns:1fr 1fr}
   /* Stat boxes sommeil : 2 col sur mobile */
   .stat-boxes-3col{grid-template-columns:repeat(2,1fr)}
+  .stat-boxes-3col>*:nth-child(odd):last-child{grid-column:1/-1}
   /* Panels */
   .panel{padding:13px}
   .panel-full{padding:13px}
@@ -65,6 +66,7 @@
   /* Stat boxes sport */
   .sp-stat-boxes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
   .sp-stat-boxes>.stat-box{min-width:0}
+  .sp-stat-boxes>.stat-box:nth-child(odd):last-child{grid-column:1/-1}
   /* Grid 2 → 1 col plus tôt */
   .grid2,.dash-act-row{grid-template-columns:minmax(0,1fr)}
   /* Training load legend : wrap + no auto margin */
@@ -74,6 +76,7 @@
   .kpi-row{grid-template-columns:repeat(2,1fr)}
   .records-grid{grid-template-columns:repeat(2,1fr)}
   .stat-boxes{grid-template-columns:repeat(2,1fr)!important}
+  .stat-boxes>.stat-box:nth-child(odd):last-child{grid-column:1/-1}
   .comparison-grid{grid-template-columns:1fr 1fr}
   .topbar-left h1{font-size:14px}
   /* La barre de période topbar est cachée — remplacée par .mobile-period-bar dans .content */

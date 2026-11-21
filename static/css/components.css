@@ -18,8 +18,10 @@
 
 /* ── DASHBOARD TOP ROW (entraînement + score) ── */
 .dash-top-row{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:22px;align-items:start}
-.dash-training-col{min-width:0}
-.dash-score-col{min-width:0}
+.dash-training-col{min-width:0;display:flex;flex-direction:column;align-self:stretch}
+.dash-training-col > .today-training-card{flex:1;display:flex;flex-direction:column}
+.dash-training-col .tcard-expand{margin-top:auto!important;padding-top:12px!important;align-self:flex-start}
+.dash-score-col{min-width:0;align-self:start}
 
 /* Quand il n'y a pas de séance du jour, la colonne training est vide → score prend toute la largeur */
 .dash-training-col:empty{display:none}
@@ -63,6 +65,7 @@
 
 /* ── HEATMAP ── */
 .heatmap-wrap{overflow-x:auto;padding-bottom:4px}
+#heatmapContainer svg{width:100%;height:auto;min-width:640px}
 .heatmap-legend{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text2)}
 .hm-leg-cell{width:12px;height:12px;border-radius:2px}
 

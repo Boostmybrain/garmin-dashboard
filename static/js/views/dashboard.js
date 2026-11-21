@@ -234,6 +234,7 @@ function renderHeatmap(W){
   }
   svg+='</svg>';
   document.getElementById('heatmapContainer').innerHTML=svg;
+  const hw=document.querySelector('.heatmap-wrap'); if(hw) hw.scrollLeft=hw.scrollWidth;   // mobile : on voit d'abord les semaines récentes
 }
 
 // ══════════════════════════════════════════
