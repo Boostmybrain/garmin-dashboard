@@ -110,10 +110,32 @@
 .act-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .act-date{font-size:11px;color:var(--text2)}
 .act-habit{font-size:11px;color:var(--green,#22C55E);margin-top:2px}
-.act-stats{display:flex;gap:10px;flex-shrink:0}
-.act-stat{font-size:11px;text-align:right}
-.act-stat .v{font-size:13px;font-weight:700;display:block}
+.act-stats{display:grid;grid-template-columns:72px 62px 70px 64px;gap:4px 10px;flex-shrink:0}
+.act-stat{font-size:10.5px;text-align:right;white-space:nowrap}
+.act-stat .v{font-size:13px;font-weight:700;display:block;font-variant-numeric:tabular-nums}
 .act-stat .l{color:var(--text2)}
+.act-plan{font-weight:500;color:var(--text2)}
+.act-date{text-transform:none}
+.act-date::first-letter{text-transform:uppercase}
+
+/* Dashboard : Activités récentes et Volume course à la même hauteur */
+.dash-act-row{align-items:stretch;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.act-list{container-type:inline-size}
+.act-item{min-width:0}
+@container (max-width:560px){
+  .act-stats{grid-template-columns:62px 56px 66px;gap:4px 8px}
+  .act-stats .act-stat:nth-child(4){display:none}
+}
+@container (max-width:430px){
+  .act-stats{grid-template-columns:auto auto}
+  .act-stat{min-width:54px}
+  .act-stats .act-stat:nth-child(3){display:none}
+  .act-item{gap:10px;padding:9px 10px}
+}
+.dash-act-row > .panel{display:flex;flex-direction:column;margin-bottom:0}
+.dash-act-row .act-list{max-height:none;overflow:visible}
+.run-chart-box{position:relative;flex:1;min-height:240px}
+.sp-run-box{position:relative;height:220px}
 
 /* ── FILTER TABS ── */
 .filter-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}

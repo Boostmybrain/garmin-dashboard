@@ -14,72 +14,77 @@ function renderSleepDonut(canvasId,phasesId,s){
   pk.forEach((k,i)=>{const m=s[k]||0,pct=tot>0?Math.round(m/tot*100):0;ph.innerHTML+=`<div class="phase-row"><div class="phase-dot" style="background:${pc[i]}"></div><span class="phase-lbl">${pn[i]}</span><div class="phase-bar-wrap"><div class="phase-bar" style="background:${pc[i]};width:${pct}%"></div></div><span class="phase-pct">${fmt(m)}</span></div>`;});
 }
 function renderRunChart(id,A){
-  // Palette couleurs par sortie (jusqu'à 7 courses/semaine)
-  const COLS=['#4A6CF7','#22C55E','#FF6B35','#F59E0B','#8B5CF6','#0EA5E9','#EF4444'];
-
-  // Grouper les courses par semaine (lundi = début)
+  // Une barre par semaine (lundi = début). Le détail des sorties est dans l'infobulle.
   const weekRuns={};
   A.filter(a=>a.type==='running'&&a.distance_km>0).forEach(a=>{
-    const d=new Date(a.date);
+    const d=new Date(a.date+'T00:00:00');
     const dow=d.getDay();
     const mon=new Date(d);
     mon.setDate(d.getDate()-(dow===0?6:dow-1));
     const wk=localISO(mon);
-    if(!weekRuns[wk])weekRuns[wk]=[];
-    weekRuns[wk].push(+(a.distance_km.toFixed(1)));
+    (weekRuns[wk]=weekRuns[wk]||[]).push(a);
   });
+  // 10 dernières semaines, y compris celles sans course
+  const today=new Date(); today.setHours(0,0,0,0);
+  const curMon=new Date(today); curMon.setDate(today.getDate()-((today.getDay()+6)%7));
+  const wks=[];
+  for(let k=9;k>=0;k--){const m=new Date(curMon); m.setDate(curMon.getDate()-7*k); wks.push(localISO(m));}
+  const km=wks.map(w=>+(weekRuns[w]||[]).reduce((s,a)=>s+a.distance_km,0).toFixed(1));
+  const avg=km.map((_,i)=>{const sl=km.slice(Math.max(0,i-3),i+1);return +(sl.reduce((s,v)=>s+v,0)/sl.length).toFixed(1);});
+  const isCur=wks.map(w=>w===localISO(curMon));
+  const labels=wks.map(w=>{const [,mo,dy]=w.split('-');return `${parseInt(dy)}/${mo}`;});
 
-  const wks=Object.keys(weekRuns).sort().slice(-10);
-  const maxRuns=Math.max(1,...wks.map(w=>weekRuns[w].length));
-
-  // Un dataset par position de course (1ère, 2ème, 3ème…)
-  const datasets=[];
-  for(let i=0;i<maxRuns;i++){
-    const col=COLS[i%COLS.length];
-    datasets.push({
-      label:`Course ${i+1}`,
-      data:wks.map(w=>weekRuns[w][i]||0),
-      backgroundColor:col+'CC',
-      borderColor:col,
-      borderWidth:1.5,
-      borderRadius:i===maxRuns-1?4:0,
-      borderSkipped:'bottom',
-      stack:'runs',
-    });
-  }
+  const valueLabels={id:'runValueLabels',afterDatasetsDraw(chart){
+    const meta=chart.getDatasetMeta(0), ctx=chart.ctx;
+    ctx.save(); ctx.font='600 10px Inter, system-ui, sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--text2')||'#6B7494';
+    meta.data.forEach((bar,i)=>{ if(km[i]>0) ctx.fillText(nfr(km[i],0), bar.x, bar.y-4); });
+    ctx.restore();
+  }};
 
   mkChart(id,{
     type:'bar',
-    data:{labels:wks.map(fmtDate),datasets},
+    data:{labels,datasets:[
+      {type:'bar',label:'Km courus',data:km,order:2,
+        backgroundColor:isCur.map(c=>c?'#FF6B3555':'#FF6B35CC'),borderColor:'#FF6B35',borderWidth:1.5,borderRadius:6,
+        borderDash:isCur.map(c=>c?[4,3]:[])},
+      {type:'line',label:'Moyenne 4 sem.',data:avg,order:1,borderColor:'#4A6CF7',backgroundColor:'transparent',
+        borderWidth:2,pointRadius:0,tension:.35},
+    ]},
     options:{
-      responsive:true,maintainAspectRatio:false,
+      responsive:true,maintainAspectRatio:false,layout:{padding:{top:16}},
       plugins:{
-        legend:{display:false},
-        tooltip:{
-          callbacks:{
-            label:c=>c.raw>0?`Course ${c.datasetIndex+1} : ${nfr(c.raw)} km`:null,
-            footer:items=>{
-              const nz=items.filter(c=>c.raw>0);
-              if(!nz.length)return'';
-              const tot=nz.reduce((s,c)=>s+c.raw,0);
-              return`Total : ${nfr(tot)} km  ·  ${nz.length} sortie${nz.length>1?'s':''}`;
-            }
+        legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:10,usePointStyle:true}},
+        tooltip:{callbacks:{
+          title:items=>`Semaine du ${labels[items[0].dataIndex]}${isCur[items[0].dataIndex]?' (en cours)':''}`,
+          label:c=>c.datasetIndex===0?`${nfr(c.raw)} km`:`Moyenne 4 sem. : ${nfr(c.raw)} km`,
+          afterBody:items=>{
+            const runs=weekRuns[wks[items[0].dataIndex]]||[];
+            return runs.map(a=>`· ${fmtDate(a.date)} : ${nfr(a.distance_km)} km`);
           }
-        }
+        }}
       },
       scales:{
-        x:{display:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{display:false}},
-        y:{display:true,stacked:true,ticks:{font:{size:9},color:'#9CA3AF'},grid:{color:'var(--surface2)'}},
+        x:{display:true,ticks:{font:{size:10},color:'#9CA3AF',maxRotation:0,autoSkip:true,autoSkipPadding:6},grid:{display:false}},
+        y:{display:true,beginAtZero:true,ticks:{font:{size:10},color:'#9CA3AF',callback:v=>v+' km'},grid:{color:'var(--surface2)'}},
       }
-    }
+    },
+    plugins:[valueLabels]
   });
 }
+const _durFmt=m=>!m?'':m<60?`${m} min`:`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+const _paceFmt=a=>{if(!(a.distance_km>0&&a.duration_min>0))return'';const p=a.duration_min/a.distance_km;let mm=Math.floor(p),ss=Math.round((p%1)*60);if(ss===60){mm++;ss=0;}return `${mm}'${String(ss).padStart(2,'0')}"`;};
+const _dayFmt=d=>new Date(d+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
 function actHTML(a){
   const ic=actIcon(a.type);
-  const paceStr=(a.distance_km>0&&a.duration_min>0)?
-    (p=>{return Math.floor(p)+"'"+String(Math.round((p%1)*60)).padStart(2,'0')+'"'})(a.duration_min/a.distance_km)
-    :'';
-  return `<div class="act-item"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}</div><div class="act-date">${fmtDate(a.date)}${a.name&&a.name!==a.type?' · '+a.name:''}</div>${a.fromHabit?'<div class="act-habit">✓ Cochée dans tes habitudes · non enregistrée par la montre</div>':''}</div><div class="act-stats">${a.distance_km>0?`<div class="act-stat"><span class="v">${a.distance_km.toLocaleString('fr-FR',{maximumFractionDigits:2})} km</span><span class="l">Distance</span></div>`:''}${a.duration_min?`<div class="act-stat"><span class="v">${a.duration_min} min</span><span class="l">${a.fromHabit?'Durée prévue':'Durée'}</span></div>`:''}${a.avgHR?`<div class="act-stat"><span class="v">${a.avgHR} bpm</span><span class="l">FC moy</span></div>`:''  }${paceStr?`<div class="act-stat"><span class="v">${paceStr}/km</span><span class="l">Allure moy</span></div>`:''  }${a.calories?`<div class="act-stat"><span class="v">${a.calories} kcal</span><span class="l">Cal dépensées</span></div>`:''}</div></div>`;
+  // Nom Garmin par défaut (« Toulouse Course à pied ») : redondant, on ne l'affiche pas
+  const generic=!a.name||a.name===a.type||/course à pied|running|muscul|vélo|cyclisme|yoga|randonn/i.test(a.name);
+  const sub=[_dayFmt(a.date), (generic||a.fromHabit)?'':a.name].filter(Boolean).join(' · ');
+  const stat=(v,l)=>v?`<div class="act-stat"><span class="v">${v}</span><span class="l">${l}</span></div>`:'<div class="act-stat act-stat-empty"></div>';
+  const stats=a.distance_km>0
+    ? stat(`${a.distance_km.toLocaleString('fr-FR',{maximumFractionDigits:1})} km`,'Distance')+stat(_durFmt(a.duration_min),'Durée')+stat(_paceFmt(a)&&_paceFmt(a)+'/km','Allure')+stat(a.avgHR&&`${a.avgHR} bpm`,'FC moy')
+    : stat('','')+stat(_durFmt(a.duration_min),a.fromHabit?'Durée prévue':'Durée')+stat('','')+stat(a.avgHR&&`${a.avgHR} bpm`,'FC moy');
+  return `<div class="act-item${a.fromHabit?' act-from-habit':''}"><div class="act-ic" style="background:${ic.bg}">${ic.svg}</div><div class="act-info"><div class="act-name">${typeLabel(a.type)}${a.fromHabit&&a.name?` <span class="act-plan">· ${a.name}</span>`:''}</div><div class="act-date">${sub}</div>${a.fromHabit?'<div class="act-habit" title="Séance validée par la case cochée dans tes habitudes (non enregistrée par la montre)">✓ Validée via tes habitudes</div>':''}</div><div class="act-stats">${stats}</div></div>`;
 }
 const EMPTY=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><h3>Aucune donnée</h3><p>Importez un fichier Garmin</p></div>`;
 
@@ -305,7 +310,9 @@ function renderDashboard(){
   renderHeatmap(W);
   renderComparison(W,S);
 
-  document.getElementById('actList').innerHTML=A.length?[...A].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(actHTML).join(''):EMPTY;
+  if(typeof _habitStrength!=='undefined' && _habitStrength===null && typeof loadHabitStrength==='function') loadHabitStrength();
+  const AL=typeof sportActivities==='function'?sportActivities():A;
+  document.getElementById('actList').innerHTML=AL.length?[...AL].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(actHTML).join(''):EMPTY;
   document.getElementById('actBadge').textContent=A.length?`${A.length} séances`:'—';
 
   document.getElementById('stepsChartBadge').textContent=curPeriod+'j';

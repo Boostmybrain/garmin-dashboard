@@ -6,7 +6,7 @@
   .records-grid{grid-template-columns:repeat(3,1fr)}
 }
 @media(max-width:1000px){
-  .grid2{grid-template-columns:1fr}
+  .grid2,.dash-act-row{grid-template-columns:minmax(0,1fr)}
   .stat-boxes{grid-template-columns:repeat(2,1fr)}
   .comparison-grid{grid-template-columns:repeat(2,1fr)}
 }
@@ -60,13 +60,13 @@
   /* Act list max-height réduit */
   .act-list{max-height:380px}
   /* Act stats : moins de colonnes */
-  .act-stats{gap:6px}
   .act-stat .v{font-size:12px}
+  .run-chart-box{min-height:200px}
   /* Stat boxes sport */
   .sp-stat-boxes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
   .sp-stat-boxes>.stat-box{min-width:0}
   /* Grid 2 → 1 col plus tôt */
-  .grid2{grid-template-columns:1fr}
+  .grid2,.dash-act-row{grid-template-columns:minmax(0,1fr)}
   /* Training load legend : wrap + no auto margin */
   .tl-info-btn{margin-left:0;margin-top:4px}
 }
@@ -80,7 +80,6 @@
   .period-selector{display:none}
   .content{padding:10px 10px calc(70px + env(safe-area-inset-bottom,8px))}
   /* Act stats 2 items visibles max */
-  .act-stats .act-stat:nth-child(n+4){display:none}
   /* Charts encore plus petits */
   .panel [style*="height:160px"]{height:120px!important}
   .panel [style*="height:140px"]{height:110px!important}

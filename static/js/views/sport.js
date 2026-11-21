@@ -37,6 +37,7 @@ async function loadHabitStrength(){
   }catch(e){ _habitStrength = _habitStrength || []; }
   _habitStrengthLoading = false;
   if(curView==='sport') renderSport();
+  else if(curView==='dashboard' && typeof renderDashboard==='function') renderDashboard();
 }
 
 // Activités montre + séances de force cochées non enregistrées par la montre
