@@ -85,6 +85,236 @@ function formatSessionHtml(content){
   return html;
 }
 
+// ══════════════════════════════════════════
+// FORMAT COMPACT D'UNE SÉANCE
+// Sépare le texte du coach en 4 groupes : séance (blocs enchaînés, lignes
+// compactées), mises en garde (⚠️ ❌ 🚨), consignes (🎯 📌 ➡️ …) et point du
+// matin (tout ce qui précède la ligne ───).
+// ══════════════════════════════════════════
+const _BLOCK_EMOJI = ['🔥','🦵','🏋','🏃','🚶','🧘','🧱','🩴','🦘','⚡','🧪','🚴','🏊','💪','🤸','🚣'];
+const _WARN_EMOJI  = ['⚠','❌','🚨','⛔','🛑'];
+const _ARROW       = /^(➡️|➡|→)\s*/;
+const _NUM_ITEM    = /^(\d{1,2})\s*[·.)-]\s+/;
+
+const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function _lineKind(line){
+  if(_ARROW.test(line)) return 'arrow';
+  if(!_EMOJI_START.test(line)) return 'plain';
+  if(_WARN_EMOJI.some(e=>line.startsWith(e)))  return 'warn';
+  if(_BLOCK_EMOJI.some(e=>line.startsWith(e))) return 'block';
+  return 'note';
+}
+
+// "2 min 30" / "90 s" → 2'30 / 1'30 / 45"
+function _fmtRest(min, sec){
+  const t = (parseInt(min||0,10)*60) + parseInt(sec||0,10);
+  if(t < 60) return `${t}"`;
+  const m = Math.floor(t/60), s = t%60;
+  return s ? `${m}'${String(s).padStart(2,'0')}` : `${m}'`;
+}
+const _REST_RE = /\brepos\s+(?:de\s+)?(?:(\d+)\s*min(?:\s*(\d+)(?:\s*s)?)?|(\d+)\s*s)\b/gi;
+function _compactRest(t){
+  return t
+    .replace(/(?:(\d+)\s*min(?:\s*(\d+))?|(\d+)\s*s)\s+de\s+repos\s+entre\s+les\s+(\S+)/gi,
+             (_,m,s,ss,what)=>`R = ${ss?_fmtRest(0,ss):_fmtRest(m,s)} entre les ${what.toLowerCase()}`)
+    .replace(_REST_RE, (_,m,s,ss)=>'R = '+(ss?_fmtRest(0,ss):_fmtRest(m,s)))
+    .replace(/R = ([^\s·]+) ENTRE/g,'R = $1 entre');
+}
+
+// Abréviations + suppression du détail des disques "(barre 20 + 2×20 + 2×5)"
+function _compactText(t){
+  return t
+    .replace(/\s*\((?:barre\s+)?\d+(?:,\d+)?\s*\+[^)]*\)/gi,'')
+    .replace(/SOULEV[ÉE] DE TERRE/gi,'SDT')
+    .replace(/SQUAT FRONTAL/gi,'FRONT SQUAT')
+    .replace(/\bkettlebells?\b/gi,'KB')
+    .replace(/\bwall balls?\b/gi,'WB')
+    .replace(/\bburpee broad jumps?\b/gi,'BBJ')
+    .replace(/\s{2,}/g,' ').trim();
+}
+
+// Ligne d'exercice : charges simplifiées, repos en R = x'yy
+function _compactWorkout(t){
+  return _compactRest(_compactText(t))
+    .replace(/\b(?:haltères|sac à dos|balle|lest)\s+(\d)/gi,'$1')
+    .replace(/\bpoids du corps\b/gi,'PDC')
+    .replace(/\bpar (jambe|côté|bras|pied)(?![\wà-ÿ])/gi,'/$1')
+    .replace(/\s*\.$/,'');
+}
+
+// Découpe "A · B · C" ; les segments bavards partent dans les consignes
+function _splitSegments(text, label, notes){
+  const segs = text.split(/\s+·\s+/);
+  const kept = [segs[0]];
+  for(const seg of segs.slice(1)){
+    const chatty = (seg.length > 25 && !/\d/.test(seg) && seg !== seg.toUpperCase())
+                || /^(si|tu|jamais)\b/i.test(seg);
+    if(chatty){
+      const lbl = label.replace(_EMOJI_START,'').replace(/[️‍]/g,'').trim();
+      notes.push({text: `${lbl ? lbl+' : ' : ''}${seg}`, sub:[]});
+    } else {
+      // Longue parenthèse explicative → consigne
+      kept.push(seg.replace(/\s*\(([^)]{36,})\)/g, (_,x)=>{ notes.push({text:x, sub:[]}); return ''; }));
+    }
+  }
+  return kept.join(' · ');
+}
+
+function _compactHeader(line, notes){
+  let h = line
+    .replace(/\s*\([^)]{16,}\)/g,'')                                         // longues parenthèses
+    .replace(/\s*·\s*(?:enchaînés sans aucune pause[^·]*|aucun repos à l'intérieur du tour)/gi,' · sans pause');
+  h = _compactWorkout(h);
+  const name = h.split(/\s+·\s+/)[0];
+  return _splitSegments(h, name, notes);
+}
+
+function parseSessionStructured(content){
+  const lines = content.split('\n');
+  // Point du matin = tout ce qui précède une ligne de séparation ───
+  let morning = '';
+  const sepIdx = lines.findIndex(l => /^[\s─━—\-_=]{8,}$/.test(l) && /[─━]/.test(l));
+  let body = lines;
+  if(sepIdx > 0){
+    morning = lines.slice(0, sepIdx).join('\n').trim();
+    body = lines.slice(sepIdx+1);
+  }
+
+  const blocks = [], notes = [], warns = [];
+  let cur = null;          // conteneur courant : {type:'block'|'note'|'warn', ref}
+  let lastWasEmptyBlock = false;
+
+  const addNote = (arr, text) => { const n={text, sub:[]}; arr.push(n); return n; };
+
+  for(const raw of body){
+    const line = raw.trim();
+    if(!line){ lastWasEmptyBlock=false; continue; }
+    const kind = _lineKind(line);
+
+    if(kind==='block'){
+      const prev = blocks[blocks.length-1];
+      // Bloc d'une ligne juste sous un en-tête vide (ex. isométrie dans l'échauffement)
+      if(lastWasEmptyBlock && prev && !prev.items.length){
+        prev.items.push(_splitSegments(_compactWorkout(line), line.split(' · ')[0], notes));
+        continue;
+      }
+      const b = {head:_compactHeader(line, notes), items:[]};
+      b.circuit = /\b\d+\s*tours?\b/i.test(b.head);
+      blocks.push(b);
+      cur = {type:'block', ref:b};
+      lastWasEmptyBlock = true;
+      continue;
+    }
+    lastWasEmptyBlock = false;
+
+    if(kind==='arrow'){ addNote(notes, _compactText(line.replace(_ARROW,''))); continue; }
+    if(kind==='warn'){
+      const t = line.replace(/^(⚠️|⚠)\s*/,'');
+      cur = {type:'warn', ref:addNote(warns, _compactText(t))};
+      continue;
+    }
+    if(kind==='note'){
+      const t = line.replace(/^📌\s*/,'');
+      cur = {type:'note', ref:addNote(notes, _compactText(t))};
+      continue;
+    }
+
+    // Ligne simple
+    const isNum = _NUM_ITEM.test(line);
+    if(isNum && blocks.length && (!cur || cur.type!=='block')){
+      cur = {type:'block', ref:blocks[blocks.length-1]};
+    }
+    if(cur && cur.type==='block'){
+      const b = cur.ref;
+      // "Repos 2 min 30 ENTRE les tours." → dans l'en-tête du circuit
+      if(/^repos\b.*\bentre\s+les\s+tours/i.test(line)){
+        b.head += ' · ' + _compactWorkout(line).replace(/^R = /,'R = ');
+        continue;
+      }
+      // Phrases multiples : la 1re reste, le reste part en consigne
+      let text = line;
+      if(/^\(.*\)$/.test(text)){ addNote(notes, _compactText(text.slice(1,-1))); continue; }
+      if(!isNum && text.length > 70){
+        const parts = text.split(/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ0-9«])/);
+        if(parts.length > 1){
+          text = parts[0];
+          addNote(notes, _compactText(parts.slice(1).join(' ')));
+        }
+      }
+      if(isNum){
+        const n = line.match(_NUM_ITEM)[1];
+        const rest = line.replace(_NUM_ITEM,'');
+        const name = rest.split(' · ')[0];
+        b.items.push({num:n, text:_splitSegments(_compactWorkout(rest), name, notes)});
+      } else if(b.circuit && (text.match(/ · /g)||[]).length >= 2 && !/^(puis|montée|technique)/i.test(text)){
+        // Ligne "A · B · C" d'un circuit/gainage → un exercice par ligne
+        _compactWorkout(text).split(/\s+·\s+/).forEach(seg=>
+          b.items.push(seg.charAt(0).toUpperCase()+seg.slice(1)));
+      } else {
+        b.items.push(_splitSegments(_compactWorkout(text), b.head.split(' · ')[0], notes));
+      }
+      continue;
+    }
+    if(cur && (cur.type==='note' || cur.type==='warn')){
+      cur.ref.sub.push(_compactText(line.replace(_BULLET,'')));
+      continue;
+    }
+    addNote(notes, _compactText(line));
+  }
+  return {blocks, notes, warns, morning};
+}
+
+function _blockHtml(b){
+  const isCircuit = b.circuit && b.items.length > 1;
+  const tag = isCircuit ? 'ol' : 'ul';
+  const items = b.items.map(it=>{
+    if(typeof it === 'object'){
+      return isCircuit
+        ? `<li>${_esc(it.text)}</li>`
+        : `<li><span class="ts-num">${it.num}</span> · ${_esc(it.text)}</li>`;
+    }
+    return `<li>${_esc(it)}</li>`;
+  }).join('');
+  return `<div class="ts-block">
+      <div class="ts-head">${_esc(b.head)}</div>
+      ${items ? `<${tag} class="ts-list${isCircuit?' ts-ol':''}">${items}</${tag}>` : ''}
+    </div>`;
+}
+
+function _notesHtml(arr){
+  return arr.map(n=>{
+    // Met en gras l'intitulé en majuscules en début de consigne ("AUTORÉGULATION :")
+    const t = _esc(n.text).replace(/^(\p{Extended_Pictographic}\uFE0F?\s*)?([^a-zà-ÿ]{4,}?)(\s*[:.](?:\s|$))/u,
+                                   (_,e,h,p)=>`${e||''}<b>${h}</b>${p}`);
+    const sub = n.sub.length
+      ? `<ul class="ts-sub">${n.sub.map(s=>`<li>${_esc(s)}</li>`).join('')}</ul>` : '';
+    return `<li>${t}${sub}</li>`;
+  }).join('');
+}
+
+function formatSessionCompact(content){
+  const {blocks, notes, warns, morning} = parseSessionStructured(content);
+  if(!blocks.length) return formatSessionHtml(content);   // format inconnu : rendu brut
+  let html = `<div class="ts-wrap">${blocks.map(_blockHtml).join('')}`;
+  if(warns.length){
+    html += `<div class="ts-group ts-warn">
+      <div class="ts-group-title">⚠️ Mises en garde</div>
+      <ul class="ts-notes">${_notesHtml(warns)}</ul></div>`;
+  }
+  if(notes.length){
+    html += `<details class="ts-group ts-info">
+      <summary class="ts-group-title">📌 Consignes <span class="ts-count">${notes.length}</span></summary>
+      <ul class="ts-notes">${_notesHtml(notes)}</ul></details>`;
+  }
+  if(morning){
+    html += `<details class="ts-group ts-morning">
+      <summary class="ts-group-title">📊 Point du matin</summary>
+      <div class="ts-morning-body">${formatSessionHtml(morning)}</div></details>`;
+  }
+  return html + '</div>';
+}
+
 function renderTodayWidget(){
   const wrap = document.getElementById('todayTrainingWidget');
   if(!wrap) return;
@@ -92,12 +322,16 @@ function renderTodayWidget(){
   if(!_todaySession){ wrap.innerHTML=''; return; }
   const s = _todaySession;
 
-  // Aperçu : 4 premiers blocs
-  const previewHtml = parseSessionBlocks(s.content).filter(b=>b.kind!=='gap').slice(0,4).map(b=>
-    b.kind==='head'
-      ? `<div style="font-weight:700;margin-top:6px">${b.text}</div>`
-      : `<div style="font-size:13px;color:var(--text2);padding-left:8px">${b.text}</div>`
-  ).join('');
+  // Aperçu : le déroulé de la séance (en-têtes de blocs compactés)
+  const st = parseSessionStructured(s.content);
+  const previewHtml = st.blocks.length
+    ? `<ul class="ts-preview">${st.blocks.map(b=>`<li>${_esc(b.head)}</li>`).join('')}</ul>`
+      + (st.warns.length ? `<div class="ts-preview-warn">⚠️ ${st.warns.length} mise${st.warns.length>1?'s':''} en garde</div>` : '')
+    : parseSessionBlocks(s.content).filter(b=>b.kind!=='gap').slice(0,4).map(b=>
+        b.kind==='head'
+          ? `<div style="font-weight:700;margin-top:6px">${b.text}</div>`
+          : `<div style="font-size:13px;color:var(--text2);padding-left:8px">${b.text}</div>`
+      ).join('');
 
   wrap.innerHTML=`
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
@@ -112,7 +346,7 @@ function renderTodayWidget(){
         <div class="tcard-badge" style="background:${s.color}20;color:${s.color}">Aujourd'hui</div>
       </div>
       <div id="todayPreview" class="tcard-body" style="margin-top:8px">${previewHtml}</div>
-      <div id="todayFull" style="display:none;margin-top:8px">${formatSessionHtml(s.content)}</div>
+      <div id="todayFull" style="display:none;margin-top:8px">${formatSessionCompact(s.content)}</div>
       <button class="tcard-expand" id="todayExpandBtn" onclick="toggleTodayExpand()">
         Voir la séance complète ↓
       </button>
@@ -311,7 +545,7 @@ function selectPlanDay(idx){
   detailPanel.innerHTML=`
     <div class="pdp-title">${session.title}</div>
     <div class="pdp-sub">${session.day_name} ${session.day_num}</div>
-    <div class="pdp-body">${formatSessionHtml(session.content)}</div>`;
+    <div class="pdp-body">${formatSessionCompact(session.content)}</div>`;
 
   if(window.innerWidth<=768){
     detailPanel.scrollIntoView({behavior:'smooth',block:'start'});
@@ -323,7 +557,7 @@ function openDayDetail(session){
   _openedSession=session;
   document.getElementById('ddsTitle').textContent=session.title;
   document.getElementById('ddsSub').textContent=`${session.day_name} ${session.day_num}`;
-  document.getElementById('ddsContent').innerHTML=formatSessionHtml(session.content);
+  document.getElementById('ddsContent').innerHTML=formatSessionCompact(session.content);
   document.getElementById('dayDetailModal').style.display='flex';
   document.body.style.overflow='hidden';
 }

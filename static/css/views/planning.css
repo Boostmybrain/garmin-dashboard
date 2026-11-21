@@ -131,3 +131,28 @@
 @media(max-width:600px){
   .week-grid{grid-template-columns:1fr}
 }
+
+/* ── Séance compacte (Entraînement du jour + détail planning) ── */
+.ts-wrap{font-size:14px;line-height:1.55;color:var(--text)}
+.ts-block{margin:0 0 14px}
+.ts-head{font-weight:700;font-size:14px;margin-bottom:4px}
+.ts-list{margin:0 0 0 20px;padding:0;list-style:disc}
+.ts-list.ts-ol{list-style:decimal}
+.ts-list li{margin:2px 0}
+.ts-num{font-weight:700}
+.ts-group{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5}
+.ts-group-title{font-weight:700;font-size:13px;cursor:default}
+details.ts-group > summary{cursor:pointer;list-style:none}
+details.ts-group > summary::-webkit-details-marker{display:none}
+details.ts-group > summary::after{content:' ↓';color:var(--text2);font-weight:400}
+details.ts-group[open] > summary::after{content:' ↑'}
+.ts-warn{background:rgba(239,68,68,.08);border-left:3px solid var(--red)}
+.ts-info{background:var(--surface2)}
+.ts-morning{background:var(--surface2)}
+.ts-count{display:inline-block;font-size:11px;font-weight:600;padding:0 7px;border-radius:10px;background:var(--border);color:var(--text2);margin-left:4px}
+.ts-notes{margin:6px 0 0 18px;padding:0;list-style:disc}
+.ts-notes > li{margin:4px 0}
+.ts-sub{margin:2px 0 0 16px;padding:0;list-style:circle;color:var(--text2)}
+.ts-morning-body{margin-top:6px}
+.ts-preview{margin:0 0 0 18px;padding:0;list-style:disc;font-size:13px;line-height:1.7}
+.ts-preview-warn{font-size:12px;color:var(--red);margin-top:6px}
