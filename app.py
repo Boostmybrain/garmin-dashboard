@@ -104,6 +104,14 @@ def init_db():
             week_label  TEXT,
             sessions    TEXT
         )""")
+        # Historique des séances par jour : survit aux réécritures du plan
+        # (la routine « Coach matin » remplace le plan en place chaque jour)
+        c.execute("""CREATE TABLE IF NOT EXISTS training_log(
+            date       TEXT PRIMARY KEY,
+            title      TEXT,
+            color      TEXT,
+            updated_at TEXT
+        )""")
         c.execute("""CREATE TABLE IF NOT EXISTS meals(
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             analyzed_at TEXT,
@@ -566,6 +574,32 @@ def parse_training_plan(text: str) -> list:
     return sessions
 
 
+def _session_iso(s: dict, ref) -> str | None:
+    """Date AAAA-MM-JJ d'une séance (le plan ne stocke que jour + mois)."""
+    from datetime import date as _date, timedelta
+    try:
+        d = _date(ref.year, int(s.get('month') or 0), int(s.get('day_num') or 0))
+    except (ValueError, TypeError):
+        return None
+    if d < ref - timedelta(days=180):
+        d = d.replace(year=d.year + 1)
+    elif d > ref + timedelta(days=180):
+        d = d.replace(year=d.year - 1)
+    return d.isoformat()
+
+
+def _log_sessions(c, sessions: list):
+    """Enregistre chaque séance du plan dans l'historique par jour."""
+    from datetime import date as _date
+    now = datetime.now(timezone.utc).isoformat()
+    today = _date.today()
+    for s in sessions:
+        iso = _session_iso(s, today)
+        if iso:
+            c.execute("INSERT OR REPLACE INTO training_log(date,title,color,updated_at) VALUES(?,?,?,?)",
+                      [iso, s.get('title', ''), s.get('color', ''), now])
+
+
 @app.route("/api/upload-training", methods=["POST"])
 def api_upload_training():
     body = request.get_json(silent=True) or {}
@@ -581,6 +615,7 @@ def api_upload_training():
                   [datetime.now(timezone.utc).isoformat(),
                    week_label,
                    json.dumps(sessions, ensure_ascii=False)])
+        _log_sessions(c, sessions)
     return jsonify({"ok": True, "sessions": sessions, "week_label": week_label})
 
 
@@ -598,12 +633,13 @@ def api_get_training():
 
 @app.route("/api/training/history")
 def api_training_history():
-    """Toutes les séances de tous les plans chargés, datées (AAAA-MM-JJ).
-    Le plan ne stocke que jour + mois : l'année vient de la date d'upload.
-    Si un jour figure dans plusieurs plans, le plan le plus récent l'emporte."""
-    from datetime import date as _date, timedelta
+    """Toutes les séances connues, datées (AAAA-MM-JJ).
+    Sources : chaque plan chargé (training_week), puis l'historique par jour
+    (training_log), qui l'emporte car il garde la dernière version de chaque jour."""
+    from datetime import date as _date
     with sqlite3.connect(DATABASE) as c:
         rows = c.execute("SELECT sessions, uploaded_at FROM training_week ORDER BY id").fetchall()
+        log  = c.execute("SELECT date, title, color FROM training_log").fetchall()
     by_date = {}
     for sessions_json, uploaded_at in rows:
         try:
@@ -611,17 +647,37 @@ def api_training_history():
         except ValueError:
             up = _date.today()
         for s in json.loads(sessions_json or '[]'):
-            try:
-                d = _date(up.year, int(s.get('month') or 0), int(s.get('day_num') or 0))
-            except (ValueError, TypeError):
-                continue
-            if d < up - timedelta(days=180):
-                d = d.replace(year=d.year + 1)
-            elif d > up + timedelta(days=180):
-                d = d.replace(year=d.year - 1)
-            by_date[d.isoformat()] = {"date": d.isoformat(), "title": s.get('title', ''),
-                                      "color": s.get('color', '')}
+            iso = _session_iso(s, up)
+            if iso:
+                by_date[iso] = {"date": iso, "title": s.get('title', ''), "color": s.get('color', '')}
+    for d, title, color in log:
+        by_date[d] = {"date": d, "title": title or '', "color": color or ''}
     return jsonify({"ok": True, "sessions": sorted(by_date.values(), key=lambda x: x['date'])})
+
+
+@app.route("/api/training/history/import", methods=["POST"])
+def api_training_history_import():
+    """Ajoute des séances passées à l'historique : {sessions:[{date,title,color?}]}.
+    Ne touche pas au plan affiché dans Planning."""
+    from datetime import date as _date
+    body = request.get_json(silent=True) or {}
+    items = body.get("sessions") or []
+    now = datetime.now(timezone.utc).isoformat()
+    n = 0
+    with sqlite3.connect(DATABASE) as c:
+        for it in items:
+            try:
+                iso = _date.fromisoformat(str(it.get("date", ""))[:10]).isoformat()
+            except ValueError:
+                continue
+            title = str(it.get("title", "")).strip()
+            if not title:
+                continue
+            color = it.get("color") or next((col for e, col in _EMOJI_COLORS.items() if e in title), '#4A6CF7')
+            c.execute("INSERT OR REPLACE INTO training_log(date,title,color,updated_at) VALUES(?,?,?,?)",
+                      [iso, title, color, now])
+            n += 1
+    return jsonify({"ok": True, "imported": n})
 
 
 @app.route("/api/update-training-order", methods=["POST"])
@@ -637,6 +693,7 @@ def api_update_training_order():
             return jsonify({"error": "Aucun plan trouvé"}), 404
         c.execute("UPDATE training_week SET sessions=? WHERE id=?",
                   [json.dumps(sessions, ensure_ascii=False), row[0]])
+        _log_sessions(c, sessions)
     return jsonify({"ok": True})
 
 
