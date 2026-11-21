@@ -622,3 +622,6 @@ body[data-view="habitudes"] .mobile-period-bar{visibility:hidden}
   .hab-layout{grid-template-columns:minmax(0,1fr)}
   .hab-side{max-width:none}
 }
+/* Habitude pas encore commencée à cette date : hors statistiques */
+.hg-cell.hg-cell-off{display:block;cursor:default;opacity:.35;border-style:dashed;background:transparent}
+.hg-cell.hg-cell-off:hover{transform:none;border-color:var(--border);background:transparent}

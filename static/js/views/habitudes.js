@@ -2,6 +2,10 @@
 
 const HABITS_LIST = ['Sport','Yoga','Lecture','Italien','Complément alimentaire','Méditation'];
 const LS_HABITS   = 'garmin_habits_v1';
+// Date de début de chaque habitude ajoutée en cours de route : les jours
+// d'avant ne comptent pas dans les statistiques (case grisée, non cliquable).
+const HABIT_START = { 'Méditation': '2026-11-10' };
+const _habitActive = (h, d) => !HABIT_START[h] || d >= HABIT_START[h];
 let _habitPeriod  = 7;
 let _habitsCache  = null; // cache local pour éviter des rechargements inutiles
 
@@ -92,8 +96,12 @@ function renderHabitudes(){
 
   // ── Stats globales ──
   let totalDone = 0;
-  dates.forEach(d => HABITS_LIST.forEach(h => { if(data[d]?.[h]) totalDone++; }));
-  const totalPossible = HABITS_LIST.length * _habitPeriod;
+  let totalPossible = 0;
+  dates.forEach(d => HABITS_LIST.forEach(h => {
+    if(!_habitActive(h, d)) return;
+    totalPossible++;
+    if(data[d]?.[h]) totalDone++;
+  }));
   const pct      = totalPossible ? Math.round(totalDone / totalPossible * 100) : 0;
   const todayDone= HABITS_LIST.filter(h => data[todayStr]?.[h]).length;
 
@@ -118,8 +126,9 @@ function renderHabitudes(){
   const EMOJI = {'Sport':'🏃','Yoga':'🧘','Lecture':'📚','Italien':'🇮🇹','Complément alimentaire':'💊','Méditation':'🪷'};
   if(el('hbPeriodBadge')) el('hbPeriodBadge').textContent = _habitPeriod+' j';
   if(el('habitBars')) el('habitBars').innerHTML = HABITS_LIST.map(h=>{
-    const n = dates.filter(d => data[d]?.[h]).length;
-    const p = Math.round(n / dates.length * 100);
+    const act = dates.filter(d => _habitActive(h, d));
+    const n = act.filter(d => data[d]?.[h]).length;
+    const p = act.length ? Math.round(n / act.length * 100) : 0;
     const c = p>=70?'#22C55E':p>=40?'#F59E0B':'#94A3B8';
     return `<div class="hb-row">
       <div class="hb-top"><span>${EMOJI[h]||'✦'} ${h}</span><span style="color:${c};font-weight:700">${p}%</span></div>
@@ -146,8 +155,9 @@ function renderHabitudes(){
 
       <!-- Lignes habitudes -->
       ${HABITS_LIST.map(habit=>{
-        const rowDone  = dates.filter(d => data[d]?.[habit]).length;
-        const rowPct   = Math.round(rowDone / dates.length * 100);
+        const rowDays  = dates.filter(d => _habitActive(habit, d));
+        const rowDone  = rowDays.filter(d => data[d]?.[habit]).length;
+        const rowPct   = rowDays.length ? Math.round(rowDone / rowDays.length * 100) : 0;
         const emoji    = {
           'Sport':'🏃','Yoga':'🧘','Lecture':'📚',
           'Italien':'🇮🇹','Complément alimentaire':'💊','Méditation':'🪷'
@@ -155,11 +165,12 @@ function renderHabitudes(){
         return `
           <div class="hg-label">
             <span class="hg-habit-name">${emoji} ${habit}</span>
-            <span class="hg-habit-score" style="color:${rowPct>=70?'#22C55E':rowPct>=40?'#F59E0B':'#9CA3AF'}">${rowDone}<span class="hg-habit-total">/${dates.length}</span></span>
+            <span class="hg-habit-score" style="color:${rowPct>=70?'#22C55E':rowPct>=40?'#F59E0B':'#9CA3AF'}">${rowDone}<span class="hg-habit-total">/${rowDays.length}</span></span>
           </div>
           ${dates.map(d=>{
             const done    = !!(data[d]?.[habit]);
             const isToday = d===todayStr;
+            if(!_habitActive(habit, d)) return `<span class="hg-cell hg-cell-off" title="${habit} — pas encore commencée le ${d}"></span>`;
             return `<button
               class="hg-cell${done?' done':''}${isToday?' is-today':''}"
               onclick="toggleHabit('${d}','${habit}')"
