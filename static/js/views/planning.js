@@ -140,13 +140,23 @@ function _compactWorkout(t){
     .replace(/\b(?:haltères|sac à dos|balle|lest)\s+(\d)/gi,'$1')
     .replace(/\bpoids du corps\b/gi,'PDC')
     .replace(/\bpar (jambe|côté|bras|pied)(?![\wà-ÿ])/gi,'/$1')
+    .replace(/\s+AVANT LA COURSE\b/gi,'')
+    .replace(/^Puis\s+/i,'')
+    .replace(/^(\d+(?:,\d+)?\s*k?m)\s+de course à\s+/i,'$1 · ')
     .replace(/\s*\.$/,'');
 }
 
 // Découpe "A · B · C" ; les segments bavards partent dans les consignes
 function _splitSegments(text, label, notes){
+  // Parenthèses explicatives → consignes (le détail des disques est déjà retiré)
+  const parens = [];
+  text = text.replace(/\s*\(([^)]{12,})\)/g, (_,x)=>{ parens.push(x); return ''; });
   const segs = text.split(/\s+·\s+/);
   const kept = [segs[0]];
+  if(parens.length){
+    const lbl = segs[0].replace(_EMOJI_START,'').replace(/[\uFE0F\u200D]/g,'').trim();
+    parens.forEach(x=>notes.push({text:`${lbl} : ${x}`, sub:[]}));
+  }
   for(const seg of segs.slice(1)){
     const chatty = (seg.length > 25 && !/\d/.test(seg) && seg !== seg.toUpperCase())
                 || /^(si|tu|jamais)\b/i.test(seg);
@@ -154,8 +164,7 @@ function _splitSegments(text, label, notes){
       const lbl = label.replace(_EMOJI_START,'').replace(/[️‍]/g,'').trim();
       notes.push({text: `${lbl ? lbl+' : ' : ''}${seg}`, sub:[]});
     } else {
-      // Longue parenthèse explicative → consigne
-      kept.push(seg.replace(/\s*\(([^)]{36,})\)/g, (_,x)=>{ notes.push({text:x, sub:[]}); return ''; }));
+      kept.push(seg);
     }
   }
   return kept.join(' · ');
@@ -285,12 +294,29 @@ function _blockHtml(b){
 function _notesHtml(arr){
   return arr.map(n=>{
     // Met en gras l'intitulé en majuscules en début de consigne ("AUTORÉGULATION :")
-    const t = _esc(n.text).replace(/^(\p{Extended_Pictographic}\uFE0F?\s*)?([^a-zà-ÿ]{4,}?)(\s*[:.](?:\s|$))/u,
+    const t = _esc(n.text).replace(/^((?:\p{Extended_Pictographic}\uFE0F?|\d\uFE0F?\u20E3)\s*)?([^a-zà-ÿ]{4,}?)(\s*[:.](?:\s|$))/u,
                                    (_,e,h,p)=>`${e||''}<b>${h}</b>${p}`);
     const sub = n.sub.length
       ? `<ul class="ts-sub">${n.sub.map(s=>`<li>${_esc(s)}</li>`).join('')}</ul>` : '';
     return `<li>${t}${sub}</li>`;
   }).join('');
+}
+
+// Point du matin → même présentation que les consignes :
+// une puce par point (1️⃣, 📌, 🎯…), les lignes suivantes en sous-puces
+function _parseMorning(text){
+  const out = [];
+  for(const raw of text.split('\n')){
+    const line = raw.trim();
+    if(!line || /^📊\s*POINT DU MATIN/i.test(line)) continue;
+    const isHead = _EMOJI_START.test(line) || /^\d\uFE0F?\u20E3/.test(line);
+    if(isHead || !out.length){
+      out.push({text:_compactText(line.replace(/^📌\s*/,'')), sub:[]});
+    } else {
+      out[out.length-1].sub.push(_compactText(line.replace(_BULLET,'')));
+    }
+  }
+  return out;
 }
 
 function formatSessionCompact(content){
@@ -310,7 +336,7 @@ function formatSessionCompact(content){
   if(morning){
     html += `<details class="ts-group ts-morning">
       <summary class="ts-group-title">📊 Point du matin</summary>
-      <div class="ts-morning-body">${formatSessionHtml(morning)}</div></details>`;
+      <ul class="ts-notes">${_notesHtml(_parseMorning(morning))}</ul></details>`;
   }
   return html + '</div>';
 }
