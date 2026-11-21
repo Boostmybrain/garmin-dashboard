@@ -544,6 +544,8 @@ function renderWeekPlan(){
     lbl.textContent = `Du ${f(days7[0])} au ${f(days7[days7.length-1])}`;
   }
 
+  renderPlanPicker();
+
   // Sélectionner aujourd'hui si une session existe, sinon la prochaine
   const today=new Date(); today.setHours(0,0,0,0);
   const upcoming=trainingPlan.map((s,i)=>({i,d:sessionDate(s,today)})).filter(x=>x.d>=today).sort((a,b)=>a.d-b.d);
@@ -553,6 +555,54 @@ function renderWeekPlan(){
   } else {
     selectPlanDay(defaultIdx);
   }
+}
+
+// ── Mobile : liste déroulante des séances à venir (remplace la bande de jours
+// qu'on faisait glisser, source de clics involontaires)
+function _upcomingPlanIdx(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  return trainingPlan.map((s,i)=>({i,d:sessionDate(s,today)}))
+    .filter(x=>x.d>=today).sort((a,b)=>a.d-b.d).map(x=>x.i);
+}
+
+function renderPlanPicker(){
+  const box=document.getElementById('planMobilePicker');
+  if(!box) return;
+  const idxs=_upcomingPlanIdx();
+  if(!idxs.length){ box.innerHTML=''; return; }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
+  const label=i=>{
+    const s=trainingPlan[i], d=sessionDate(s,today);
+    const when = d.getTime()===today.getTime() ? "Aujourd'hui"
+               : d.getTime()===tomorrow.getTime() ? 'Demain'
+               : d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    return `${when} · ${s.title}`;
+  };
+  box.innerHTML=`<div class="pmp-row">
+      <button class="pmp-nav" id="pmpPrev" onclick="stepPlanPicker(-1)" aria-label="Séance précédente">‹</button>
+      <select id="planSelect" onchange="selectPlanDay(parseInt(this.value,10))" aria-label="Choisir une séance">
+        ${idxs.map(i=>`<option value="${i}">${_esc(label(i))}</option>`).join('')}
+      </select>
+      <button class="pmp-nav" id="pmpNext" onclick="stepPlanPicker(1)" aria-label="Séance suivante">›</button>
+    </div>`;
+}
+
+function stepPlanPicker(dir){
+  const idxs=_upcomingPlanIdx();
+  const pos=idxs.indexOf(_selectedPlanIdx);
+  const next=idxs[Math.min(idxs.length-1, Math.max(0, pos+dir))];
+  if(next!==undefined) selectPlanDay(next);
+}
+
+function _syncPlanPicker(idx){
+  const sel=document.getElementById('planSelect');
+  if(!sel) return;
+  if([...sel.options].some(o=>+o.value===idx)) sel.value=String(idx);
+  const idxs=_upcomingPlanIdx(), pos=idxs.indexOf(idx);
+  const prev=document.getElementById('pmpPrev'), next=document.getElementById('pmpNext');
+  if(prev) prev.disabled = pos<=0;
+  if(next) next.disabled = pos<0 || pos>=idxs.length-1;
 }
 
 function selectPlanDay(idx){
@@ -573,9 +623,7 @@ function selectPlanDay(idx){
     <div class="pdp-sub">${session.day_name} ${session.day_num}</div>
     <div class="pdp-body">${formatSessionCompact(session.content)}</div>`;
 
-  if(window.innerWidth<=768){
-    detailPanel.scrollIntoView({behavior:'smooth',block:'start'});
-  }
+  _syncPlanPicker(idx);
 }
 
 function openDayDetail(session){
